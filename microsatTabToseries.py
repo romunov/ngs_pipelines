@@ -63,7 +63,8 @@ posmotifm4_all=[]
 	
 for line in file :
 	if (info=="skip") :
-		sortie=line[0:len(line)-1]+"\t"+"series"
+	  # add a column name 'series'
+		sortie = line[0:len(line)-1] + "\t" + "series"
 		fileout.write(sortie)
 		fileout.write('\n')
 		info="go"
