@@ -1,40 +1,44 @@
 library(parallel)
-source("functions_bundle.R")
+source("microsatAlleles.R")
+source("microsatConsensus.R")
+source("microsatTabExtract.R")
 
+# Initial chunk, if () used to fold unnecessary code.
+if (TRUE) {
 # start cores
-
-if (Sys.info()["sysname"] == "Windows") {
-  ncores <- 4
-} else {
-  ncores <- 46
+  if (Sys.info()["sysname"] == "Windows") {
+    ncores <- 4
+  } else {
+    ncores <- 46
+  }
+  
+  message(sprintf("Powering up %d cores.", ncores))
+  cl <- makeCluster(ncores)
+  
+  clusterExport(cl = cl, varlist = c("microsatAlleles", "microsatTabExtract"))
+  on.exit(stopCluster(cl))
+  
+  # load data and sample names
+  message("Importing files.")
+  sn <- list.files(pattern = ".ngsfilter", full.names = TRUE)
+  sn <- read.table(sn)
+  inputfile <- list.files(pattern = "MICROSAT")
+  
+  # extract sample names
+  samplenames <- as.character(unique(sn$V2))
+  samplenames <- unique(sapply(strsplit(samplenames, "_"), "[", 1))
+  
+  # load motif data
+  motif <- read.table("locus_motifs.txt", header = TRUE,
+                      colClasses = c("character", "character"))
+  message("Files imported.")
+  
+  # Script levels parameters:
+  num.samples <- length(unique(samplenames))
+  num.repeats <- 8
 }
 
-message(sprintf("Powering up %d cores.", ncores))
-cl <- makeCluster(ncores)
-
-clusterExport(cl = cl, varlist = c("microsatAlleles", "microsatTabExtract"))
-on.exit(stopCluster(cl))
-
-# load data and sample names
-message("Importing files.")
-sn <- list.files(pattern = ".ngsfilter", full.names = TRUE)
-sn <- read.table(sn)
-inputfile <- list.files(pattern = "MICROSAT")
-
-# extract sample names
-samplenames <- as.character(unique(sn$V2))
-samplenames <- unique(sapply(strsplit(samplenames, "_"), "[", 1))
-
-# load motif data
-motif <- read.table("locus_motifs.txt", header = TRUE,
-                    colClasses = c("character", "character"))
-message("Files imported.")
-
-# Script levels parameters:
-num.samples <- length(unique(samplenames))
-num.repeats <- 8
-
-if (TRUE) {
+if (FALSE) {
   ############################################
   #### Step 1: Create sample-locus files. ####
   ############################################
@@ -59,7 +63,7 @@ if (TRUE) {
   #   microsatTabExtract(filename = x["inputfile"] , sampleName = x["samplename"])
   # })
 }
-if (TRUE) {
+if (FALSE) {
   ######################################
   #### Step 2: Adds series to reads ####
   ######################################
@@ -97,7 +101,7 @@ if (TRUE) {
   #   system(sprintf("python microsatTabToseries.py -f %s -m %s", x, motif.in))
   # }, m = motif)
 }
-if (TRUE) {
+if (FALSE) {
   #########################################
   #### Step 3: find consensus genotype ####
   #########################################
@@ -119,15 +123,19 @@ if (TRUE) {
   
   message("Performing step 3.")
   
-  xys <- list.files(pattern = "_serie.tab")
+  oldwd <- getwd()
+  setwd("./data")
+  
+  xys <- list.files(pattern = "^MICROSAT\\.PCR.*_serie.tab")
   message(sprintf("Found %s files to be processed", length(xys)))
   print(head(xys))
   
-  # sapply(X = xys[9], FUN = function(x, m, ns, nr) {
+  # its <- grepl("PCR_POS_14", xys)
+  # sapply(X = xys[500], FUN = function(x, m, ns, nr) {
   #   message(sprintf("Processing file %s", x))
   #   tm <- gsub("(^MICROSAT\\.PCR)_([[:alnum:]\\.]*)_([[:alnum:]]{2})(\\_serie\\.tab$)", "\\3", x, perl = TRUE)
   #   ml <- nchar(m[m$locus == tm, "motif"])
-  # 
+  #   
   #   microsatAlleles(nrep = nr, motifLength = ml, numsamples = ns,
   #                   numseqfamily = 10, input = x)
   # }, m = motif, ns = num.samples, nr = num.repeats)
@@ -140,50 +148,57 @@ if (TRUE) {
                     numseqfamily = 10, input = x)
   }, m = motif, ns = num.samples, nr = num.repeats)
 }
-if (TRUE) {
+if (FALSE) {
   #################
   #### Step 4: ####
   #################
-  xyt <- list.files(pattern = "^table2n_")
   
-  sapply(xyt, FUN = microsatConsensus, repeats = num.repeats,NbEch = num.samples, threshold = 10, 
-         homozygousThreshold = 0.5)
+  # This script defines a consensus genotype, if possible, using data from the different repeats for a sample.
+  # It requires 5 arguments : 1) the number of repeats for each sample 2) the number of samples 3) the threshold 
+  # to apply to seq counts 4) the homozygous threshold 5) the name of the input file (output from microsat_alleles.r)
+  # The homozygous threshold corresponds to the percentage of repeats matching an homozygous genotype that are
+  # required to validate an homozygous genotype). In the following example, this threshold is setup at 0.5, so at 
+  # least 4 out of the 8 repeats are required to validate an homozygous genotype.
+  # 
+  # 
+  # Ex:
+  #   R –q --vanilla --args 8 19 10 0.5 table2n_MICROSAT.PCR_UARef_03_serie.tab < microsat_consensus.r
+  #                         | |  |   |_ homozygous threshold
+  #                         | |  |_____ threshold for sequence count
+  #                         | |________ number of samples
+  #                         |__________ number of repeats
+  #                               
+  # It will generate the files : ctable2n_MICROSAT.PCR_UARef_03_serie.tab, 
+  # cns_table2n_MICROSAT.PCR_UARef_03_serie.tab, cnsh_table2n_MICROSAT.PCR_UARef_03_serie.tab and UA_3_ref 
+  # (if this latter was not provided)
+  # 
+  # A reference allele file can be provided for allele names to keep identical names for the alleles from one 
+  # experiment to the other. The program first output the consensus genotypes from the analyzed run 
+  # (ctable2n_MICROSAT.PCR_UARef_03_serie.tab  and cns_table2n_MICROSAT.PCR_UARef_03_serie.tab) and then take 
+  # in account the reference allele file of the marker to change allele names according to this file if required
+  # and output the results in a new file (cnsh_table2n_MICROSAT.PCR_UARef_03_serie.tab).
+  # If no reference allele file is provided, the program creates a new one and print into this file the alleles 
+  # found in this run (in this case cns_ and cnsh_ files are equal).
+  # If a reference allele file is provided and new alleles found in the run, the reference allele file is updated.
+  
+  # oldwd <- getwd()
+  # setwd("./data")
+  
+  xyt <- list.files(pattern = "^table2n_")
+    sapply(xyt, FUN = microsatConsensus, repeats = num.repeats, 
+           NbEch = num.samples,
+           threshold = 10, 
+           homozygousThreshold = 0.5)
 }
-# This script defines a consensus genotype, if possible, using data from the different repeats for a sample.
-# It requires 5 arguments : 1) the number of repeats for each sample 2) the number of samples 3) the threshold 
-# to apply to seq counts 4) the homozygous threshold 5) the name of the input file (output from microsat_alleles.r)
-# The homozygous threshold corresponds to the percentage of repeats matching an homozygous genotype that are
-# required to validate an homozygous genotype). In the following example, this threshold is setup at 0.5, so at 
-# least 4 out of the 8 repeats are required to validate an homozygous genotype.
-# 
-# 
-# Ex:
-#   R –q --vanilla --args 8 19 10 0.5 table2n_MICROSAT.PCR_UARef_03_serie.tab < microsat_consensus.r
-#                         | |  |   |_ homozygous threshold
-#                         | |  |_____ threshold for sequence count
-#                         | |________ number of samples
-#                         |__________ number of repeats
-#                               
-# It will generate the files : ctable2n_MICROSAT.PCR_UARef_03_serie.tab, 
-# cns_table2n_MICROSAT.PCR_UARef_03_serie.tab, cnsh_table2n_MICROSAT.PCR_UARef_03_serie.tab and UA_3_ref 
-# (if this latter was not provided)
-# 
-# A reference allele file can be provided for allele names to keep identical names for the alleles from one 
-# experiment to the other. The program first output the consensus genotypes from the analyzed run 
-# (ctable2n_MICROSAT.PCR_UARef_03_serie.tab  and cns_table2n_MICROSAT.PCR_UARef_03_serie.tab) and then take 
-# in account the reference allele file of the marker to change allele names according to this file if required
-# and output the results in a new file (cnsh_table2n_MICROSAT.PCR_UARef_03_serie.tab).
-# If no reference allele file is provided, the program creates a new one and print into this file the alleles 
-# found in this run (in this case cns_ and cnsh_ files are equal).
-# If a reference allele file is provided and new alleles found in the run, the reference allele file is updated.
 
-# Creating the final output.
-
-xy <- list.files(pattern = "ctable2n")
-
-gts <- sapply(xy, FUN = extractGenotypes, simplify = FALSE)
-gts.orig <- gts
-gts <- do.call(rbind, gts)
-
-write.table(gts, file = "genotypes_UA_GATC.txt", sep = "\t", row.names = FALSE,
-            col.names = TRUE, quote = FALSE)
+if (FALSE) {
+  # Creating the final output.
+  xy <- list.files(pattern = "ctable2n")
+  
+  gts <- sapply(xy, FUN = extractGenotypes, simplify = FALSE)
+  gts.orig <- gts
+  gts <- do.call(rbind, gts)
+  
+  write.table(gts, file = "genotypes_UA_GATC.txt", sep = "\t", row.names = FALSE,
+              col.names = TRUE, quote = FALSE)
+}
