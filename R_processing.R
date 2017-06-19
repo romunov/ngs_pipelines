@@ -22,11 +22,11 @@ if (TRUE) {
   message("Importing files.")
   sn <- list.files(pattern = ".ngsfilter", full.names = TRUE)
   sn <- read.table(sn)
-  inputfile <- list.files(pattern = "MICROSAT")
+  inputfile <- list.files("./data", pattern = "^MICROSAT\\.PCR_UA_.*\\.tab$", full.names = TRUE)
   
   # extract sample names
   samplenames <- as.character(unique(sn$V2))
-  samplenames <- unique(sapply(strsplit(samplenames, "_"), "[", 1))
+  samplenames <- gsub("^(.*)_[[:alnum:]]{3}_P\\d+$", "\\1", samplenames)
   
   # load motif data
   motif <- read.table("locus_motifs.txt", header = TRUE,
@@ -56,12 +56,12 @@ if (FALSE) {
   print(head(sample.loci.combo))
   
   parApply(cl = cl, X = sample.loci.combo, MARGIN = 1, FUN = function(x) {
-    microsatTabExtract(filename = x["inputfile"] , sampleName = x["samplename"])
+    microsatTabExtract(filename = x["inputfile"] , samplename = x["samplename"])
   })
   
-  # apply(X = sample.loci.combo, MARGIN = 1, FUN = function(x) {
-  #   microsatTabExtract(filename = x["inputfile"] , sampleName = x["samplename"])
-  # })
+  apply(X = sample.loci.combo[5000, , drop = FALSE], MARGIN = 1, FUN = function(x) {
+    microsatTabExtract(filename = x["inputfile"] , samplename = x["samplename"])
+  })
 }
 if (FALSE) {
   ######################################
