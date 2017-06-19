@@ -71,9 +71,10 @@ xy <- xy[!grepl("_PCR[+-]_", basename(xy))]
 message(sprintf("Processing %d files.", length(xy)))
 
 genotypes <- parSapply(cl = cl, X = xy, FUN = function(x, Nalleles = 6) {
-# genotypes <- sapply(X = xy, FUN = function(x, Nalleles = 6) {
+# genotypes <- sapply(X = xy[grepl("M0P0K.MM", xy)], FUN = function(x, Nalleles = 6) {
   # Import data.
   io <- read.table(x, header = TRUE)
+  
   # Subset six most common alleles (this can be varied).
   io <- io[order(io$count, decreasing = TRUE), ][1:Nalleles, ]
   # Reflow data into a long format.
@@ -83,7 +84,6 @@ genotypes <- parSapply(cl = cl, X = xy, FUN = function(x, Nalleles = 6) {
   # Remove unnecessary columns.
   io$id <- NULL # uuid to be added later
   io$count <- NULL # sum of count_run ~ seq_length + series
-  
   # Add sample names, locus, allele and run number.
   # Explanation of regex:
   # string should begin with "sample.", then find a *group*, then find _,
@@ -100,20 +100,33 @@ genotypes <- parSapply(cl = cl, X = xy, FUN = function(x, Nalleles = 6) {
   # encapsulated in `allele`.
   io <- io[, c("sample", "run", "count_run", "locus", "allele", "sequence")]
   
-  # # TODO: This sanity check should be omitted.
-  # # Sanity check that each allele contains only one kind of a sequence.
-  # sanch <- split(io, f = io$allele)
-  # sanch <- sapply(sanch, FUN = function(sc) {
-  #   # If per allele there is only one sequence, return TRUE, otherwise FALSE.
-  #   if (length(unique(sc$sequence)) == 1) return(TRUE) else return(FALSE)
-  # })
-  # if (all(sanch)) {
-  #   message(sprintf("Alleles %s locus %s OK.", unique(io$sample), unique(io$locus)))
-  # } else {
-  #   message("Shit @ %s locus %s.", unique(io$sample), unique(io$locus))
-  # } 
+  # Sort by run and then decreasing count_run.
+  io <- io[order(rev(io$run), io$count_run, decreasing = TRUE), ]
+  
   io
 }, simplify = FALSE)
 
+save(genotypes, file = "./data/genotypes_gatc_dinalpbear.RData")
+
+# save blk data into its own data.frame for tidy purposes
+blk <- genotypes[grepl("Blk", genotypes$sample), ]
+genotypes <- genotypes[!grepl("Blk", genotypes$sample), ]
+genotypes$sequence <- as.character(genotypes$sequence)
+
 # Genotype processing. For instance:
 # * removing series which have less than a threshold of reads
+genotypes <- do.call(rbind, genotypes)
+rownames(genotypes) <- NULL
+genotypes$seq_length <- gsub("^(\\d+)_\\d$", "\\1", genotypes$allele) # omit this if already passed in from parallel processing
+
+# check if each sequence has only one locus
+unique(aggregate(locus ~ sequence, data = genotypes, FUN = function(x) length(unique(x)))$locus)
+# number of samples per sequence (alleles)
+table(aggregate(sample ~ sequence, data = genotypes, FUN = function(x) length(unique(x)))$sample)
+
+genotypes[genotypes$sample == "M0P0K.MM", 1:5]
+
+by(data = genotypes, INDICES = list(genotypes$sequence), FUN = function(x) {
+            browser()
+            
+          })
