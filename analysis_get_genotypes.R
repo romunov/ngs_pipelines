@@ -2,10 +2,11 @@ library(tidyr)
 library(uuid)
 library(parallel)
 
-# This script reads summarized "serie.tab" files and produces genotypes. The script can be
-# run in parallel.
+# This script reads summarized "serie.tab" files and produces genotypes. Certain parts of it are
+# run in parallel using the \code{parallel} package which comes shipped with R and works on Unix
+# and Windows machines.
 # 
-# Input should look like (from microsatTabToseries.py):
+# Input files should look like (from microsatTabToseries.py):
 # id count sample.M1P5P.MM_065_P1
 # 1     K00209:87:HJKGNBBXX:6:1101:29153:1402_CONS_SUB_SUB  2727                    366
 # 2 K00209:87:HJKGNBBXX:6:1101:31061:1437_CONS_SUB_SUB_CMP  2423                    363
@@ -34,7 +35,10 @@ library(parallel)
 # 4                 ttcttttcttttctttctttctttctttctttctttctttctttctttctttctttcaacaaaca      1
 # 5 ttcttttcttttctttctttctttctttctttctttctttctttctttctttctttctttctttctttctttcaacaaaca      1
 # 6             tccttttcttttctttctttctttctttctttctttctttctttctttctttctttctttcaacaaaca      2
-#  
+# 
+#
+#
+#
 #  And genotype output is:
 #       sample run count_run locus allele
 # 3  M0P0K.MM  P1         9   064   97_1
@@ -56,34 +60,43 @@ library(parallel)
 # 45 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
 #'  
 
+# On windows system, utilize 4 cores and 46 in Unix. Adapt according to your hardware capacity.
 if (Sys.info()["sysname"] == "Windows") {
   ncores <- 4
 } else {
   ncores <- 46
 }
 
+# Boilerplate stuff to initialize processes.
 cl <- makeCluster(ncores)
 clusterEvalQ(cl, library(tidyr))
 
+# Find files and exclude possible bad samples (e.g. if you didn't differentiate between POS+1 and POS+2).
 xy <- list.files("./data", pattern = "^MICROSAT.*_serie.tab", full.names = TRUE)
 xy <- xy[!grepl("_PCR[+-]_", basename(xy))]
 
 message(sprintf("Processing %d files.", length(xy)))
 
+# For each file, read in the data, sort it according to total count of reads, remove unnecessary columns,
+# reflow ata into a long format for all repeats, modify or create some new columns like sample, locus, run,
+# and finish by reordering the result according to count within each run. This means that first e.g. 6 rows
+# will hold six loci for run 1 (P1) ordered by the number of reads.
 genotypes <- parSapply(cl = cl, X = xy, FUN = function(x, Nalleles = 6) {
-# genotypes <- sapply(X = xy[grepl("M0P0K.MM", xy)], FUN = function(x, Nalleles = 6) {
+  # genotypes <- sapply(X = xy[grepl("M0P0K.MM", xy)][5], FUN = function(x, Nalleles = 6) {
   # Import data.
   io <- read.table(x, header = TRUE)
   
   # Subset six most common alleles (this can be varied).
   io <- io[order(io$count, decreasing = TRUE), ][1:Nalleles, ]
-  # Reflow data into a long format.
-  io <- gather(io, key = run, value = count_run, 
-               c(-id, -count, -sequence, -seq_length, -series))
   
   # Remove unnecessary columns.
   io$id <- NULL # uuid to be added later
   io$count <- NULL # sum of count_run ~ seq_length + series
+  
+  # Reflow data into a long format.
+  io <- gather(io, key = run, value = count_run, 
+               c(-sequence, -seq_length, -series))
+  
   # Add sample names, locus, allele and run number.
   # Explanation of regex:
   # string should begin with "sample.", then find a *group*, then find _,
@@ -106,27 +119,41 @@ genotypes <- parSapply(cl = cl, X = xy, FUN = function(x, Nalleles = 6) {
   io
 }, simplify = FALSE)
 
-save(genotypes, file = "./data/genotypes_gatc_dinalpbear.RData")
+## Save data into a .RData file in case shit hits the fan.
+# save(genotypes, file = "./data/genotypes_gatc_dinalpbear.RData")
+# genotypes <- do.call(rbind, genotypes)
+# rownames(genotypes) <- NULL
+# save(genotypes, file = "./data/genotypes_gatc_dinalpbear_one_df.RData")
 
-# save blk data into its own data.frame for tidy purposes
-blk <- genotypes[grepl("Blk", genotypes$sample), ]
-genotypes <- genotypes[!grepl("Blk", genotypes$sample), ]
+load("./data/genotypes_gatc_dinalpbear_one_df.RData")
+
+# Save blk data into its own data.frame for tidy purposes.
+blkpos <- genotypes[grepl("Blk|POS", genotypes$sample), ]
+rm(blkpos)
+genotypes <- genotypes[!grepl("Blk|POS", genotypes$sample), ]
 genotypes$sequence <- as.character(genotypes$sequence)
+gt <- genotypes # I feel typing "gt" is faster than "genotypes"
+rm(genotypes)
 
-# Genotype processing. For instance:
-# * removing series which have less than a threshold of reads
-genotypes <- do.call(rbind, genotypes)
-rownames(genotypes) <- NULL
-genotypes$seq_length <- gsub("^(\\d+)_\\d$", "\\1", genotypes$allele) # omit this if already passed in from parallel processing
 
 # check if each sequence has only one locus
-unique(aggregate(locus ~ sequence, data = genotypes, FUN = function(x) length(unique(x)))$locus)
-# number of samples per sequence (alleles)
-table(aggregate(sample ~ sequence, data = genotypes, FUN = function(x) length(unique(x)))$sample)
+unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
+# ... expecting [1] 1
 
-genotypes[genotypes$sample == "M0P0K.MM", 1:5]
+# Standardize loci names
+gt <- do.call(rbind, by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
+  # if (length(unique(as.numeric(as.factor(x$sequence)))) != 1) browser()
+  x <- x[order(x$count_run, decreasing = TRUE), ]
+  x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence), labels = 1:length(unique(x$sequence))))
+  x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
+  x[order(x$sample, x$run, rev(x$count_run)), ]
+})
+)
+rownames(gt) <- NULL
 
-by(data = genotypes, INDICES = list(genotypes$sequence), FUN = function(x) {
-            browser()
-            
-          })
+names(gt)
+gt <- gt[, c(1:5, 7, 6)]
+gt <- gt[order(gt$sample, gt$locus, gt$run, rev(gt$count_run)), ]
+
+write.table(gt, file = "genotypes_dinalpbear_gatc.txt", row.names = FALSE, col.names = TRUE,
+            quote = FALSE)
