@@ -127,14 +127,16 @@ genotypes <- parSapply(cl = cl, X = xy, FUN = function(x, Nalleles = 6) {
 
 load("./data/genotypes_gatc_dinalpbear_one_df.RData")
 
-# Save blk data into its own data.frame for tidy purposes.
-blkpos <- genotypes[grepl("Blk|POS", genotypes$sample), ]
+# Reads of length 0 are nonsense and are removed.
+genotypes <- genotypes[genotypes$count_run > 0, ]
+
+# Save POS data into its own data.frame for tidy purposes.
+blkpos <- genotypes[grepl("POS", genotypes$sample), ]
 rm(blkpos)
-genotypes <- genotypes[!grepl("Blk|POS", genotypes$sample), ]
+genotypes <- genotypes[!grepl("POS", genotypes$sample), ]
 genotypes$sequence <- as.character(genotypes$sequence)
 gt <- genotypes # I feel typing "gt" is faster than "genotypes"
 rm(genotypes)
-
 
 # check if each sequence has only one locus
 unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
@@ -142,7 +144,6 @@ unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)
 
 # Standardize loci names
 gt <- do.call(rbind, by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
-  # if (length(unique(as.numeric(as.factor(x$sequence)))) != 1) browser()
   x <- x[order(x$count_run, decreasing = TRUE), ]
   x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence), labels = 1:length(unique(x$sequence))))
   x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
@@ -155,5 +156,26 @@ names(gt)
 gt <- gt[, c(1:5, 7, 6)]
 gt <- gt[order(gt$sample, gt$locus, gt$run, rev(gt$count_run)), ]
 
-write.table(gt, file = "genotypes_dinalpbear_gatc.txt", row.names = FALSE, col.names = TRUE,
+# Add run position and tags so that we're able to reconstruct NGS filter.
+ngs <- read.table("UA_gatc_8_plate.ngsfilter")
+ngs$locus <- gsub("^.*_\\w+_(\\d+|(ZF)+)$", "\\1", ngs[, "V1"])
+ngs$position <- gsub("^.*_(\\d+)_P\\d+$", "\\1", ngs$V2)
+ngs$sample <- gsub("^(.*)_\\d+_.*$", "\\1", ngs$V2)
+ngs$run <- gsub("^.*_\\d+_(P\\d+)$", "\\1", ngs$V2)
+
+ss <- c("sample", "position", "locus", "V3", "run")
+ngs <- ngs[!duplicated(ngs[, ss]),][, ss]
+names(ngs)[4] <- "tagcombo"
+
+outgt <- merge(x = gt, y = ngs)
+outgt$Sample_ID <- UUIDgenerate()
+
+input <- list.files("./rawdata", pattern = "fastq.gz")[1]
+outgt$Run_Name <- gsub("_\\d\\.fastq\\.gz", "", input)
+
+outgt$run <- gsub("P", "", outgt$run)
+
+names(outgt) <- c("Sample_Name", "Plate", "Marker", "Read_Count", "old_Allele", "Allele",
+                  "Sequence", "Position", "TagCombo", "Sample_ID", "Run_Name")
+write.table(outgt, file = "genotypes_dinalpbear_gatc.txt", row.names = FALSE, col.names = TRUE,
             quote = FALSE)
