@@ -1,6 +1,10 @@
 library(tidyr)
 library(uuid)
 library(parallel)
+library(ggplot2)
+library(gridExtra)
+
+minNcount <- 0 # only alleles with  > minNcount will be processed
 
 # This script reads summarized "serie.tab" files and produces genotypes. Certain parts of it are
 # run in parallel using the \code{parallel} package which comes shipped with R and works on Unix
@@ -127,8 +131,14 @@ genotypes <- parSapply(cl = cl, X = xy, FUN = function(x, Nalleles = 6) {
 
 load("./data/genotypes_gatc_dinalpbear_one_df.RData")
 
+count.bf <- ggplot(genotypes, aes(x = count_run)) +
+  theme_bw() +
+  scale_x_continuous(limits = c(0, 500)) +
+  ggtitle(sprintf("Read count per sequence", minNcount)) +
+  geom_histogram(binwidth = 1)
+
 # Reads of length 0 are nonsense and are removed.
-genotypes <- genotypes[genotypes$count_run > 0, ]
+genotypes <- droplevels(genotypes[genotypes$count_run > minNcount, ])
 
 # Save POS data into its own data.frame for tidy purposes.
 blkpos <- genotypes[grepl("POS", genotypes$sample), ]
@@ -142,8 +152,23 @@ rm(genotypes)
 unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
 # ... expecting [1] 1
 
-# Standardize loci names
-gt <- do.call(rbind, by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
+# Standardize family by locus and length
+gt$length <- gsub("^(\\d+)_\\d+", "\\1", gt$allele)
+
+gt <- do.call(rbind, by(data = gt, INDICES = list(gt$locus, gt$length), FUN = function(x) {
+  # if (unique(x$locus) == "03" & unique(x$length == "93")) {
+  #   browser()
+  # }
+  # if (unique(x$locus) == "03") browser()
+  
+  # If allele is detected only once, discard it.
+  tmp <- split(x, f = x$sequence)
+  num.occur.seq <- sapply(tmp, nrow)
+  cand.allel <- names(num.occur.seq[num.occur.seq > 1]) # candidate alleles which occur at least twice
+  if (length(cand.allel) == 0) return(NULL)
+  x <- x[x$sequence %in% cand.allel, ]
+  
+  # Sort and re-assign new allele numbers.
   x <- x[order(x$count_run, decreasing = TRUE), ]
   x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence), labels = 1:length(unique(x$sequence))))
   x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
@@ -152,8 +177,8 @@ gt <- do.call(rbind, by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
 )
 rownames(gt) <- NULL
 
-names(gt)
-gt <- gt[, c(1:5, 7, 6)]
+# order so that sequence is at the end for easier viewing
+gt <- gt[, c("sample", "run", "count_run", "locus", "allele", "new_allele", "sequence")]
 gt <- gt[order(gt$sample, gt$locus, gt$run, rev(gt$count_run)), ]
 
 # Add run position and tags so that we're able to reconstruct NGS filter.
@@ -177,5 +202,33 @@ outgt$run <- gsub("P", "", outgt$run)
 
 names(outgt) <- c("Sample_Name", "Plate", "Marker", "Read_Count", "old_Allele", "Allele",
                   "Sequence", "Position", "TagCombo", "Sample_ID", "Run_Name")
-write.table(outgt, file = "genotypes_dinalpbear_gatc.txt", row.names = FALSE, col.names = TRUE,
+
+count.af <- ggplot(outgt, aes(x = Read_Count)) +
+  theme_bw() +
+  scale_x_continuous(limits = c(0, 500)) +
+  ggtitle(sprintf("Read count per sequence after removing \nthose with %s reads or less", minNcount)) +
+  geom_histogram(binwidth = 1)
+
+pdf(sprintf("histogram_allele_read_count_%s.pdf", unique(outgt$Run_Name)), width = 4, height = 6)
+grid.arrange(count.bf, count.af, ncol = 1)
+dev.off()
+
+write.table(outgt, file = "genotypes_dinalpbear_gatc_notrush.txt", row.names = FALSE, col.names = TRUE,
             quote = FALSE)
+
+# Find number of different alleles per locus.
+apl <- aggregate(Read_Count ~ Marker + Allele, FUN = sum, data = outgt)
+apl <- apl[order(apl$Marker, apl$Allele, apl$Read_Count, decreasing = TRUE), ]
+write.table(apl, file = "num_alleles_per_locus.txt", row.names = FALSE, col.names = TRUE, quote = FALSE)
+
+# outgt[gsub("^(\\d+)_(\\d+)$", "\\2", outgt$Allele) == 13, ]
+# tmp <- outgt
+# tmp$length <- gsub("^(\\d+)_(\\d+)$", "\\1", tmp$Allele)
+# tmp$aver <- gsub("^(\\d+)_(\\d+)$", "\\2", tmp$Allele)
+# tmp <- tmp[(tmp$length == "98" & tmp$Marker == "14"), ]
+# tmp <- split(tmp, f = tmp$Sequence)
+# sapply(tmp, write.table, row.names = FALSE, file = "test.txt", append = TRUE)
+# 
+# unique(tmp[tmp$length == "98"& tmp$Marker == "68", "Sequence"])
+# tmp[tmp$length == "98"& tmp$Marker == "68", "Allele"]
+
