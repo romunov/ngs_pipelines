@@ -14,9 +14,7 @@ parser.add_option("-m", "--motif", dest="motif", type="string", help="DNA sequen
 
 if len(sys.argv[1:]) !=4 :
     sys.stdout.write("vous devez entrer 2 arguments")
-    print ""
     sys.stdout.write("-h pour de l'aide")
-    print ""
     sys.exit(0)
 
 def mean (list) :
@@ -35,10 +33,8 @@ lenM=len(motif)
 file=open(filename,'r')
 
 ## define fileoutname
-# parts=filename.split('.')
 # User regular expression to find anything before .uniq.tab.
 parts = re.search(pattern="(^MICROSAT\\.PCR_.*)(\\.uniq\\.tab)", string=filename)
-# fileoutname=parts[0]+'.'+parts[1]+"_serie.tab"
 fileoutname = parts.group(1) + "_serie.tab"
 fileout = open(fileoutname,'w')
 
