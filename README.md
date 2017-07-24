@@ -2,7 +2,9 @@ This is how I analyzed GATC data for the `DinAlp bear` project.
 
 1) Create NGS filters. Help yourself with script `batch_create_ngs_filters.R`.
 2) Run the obitools pipeline below. It helps if you have a sufficient number of cores at your disposal. :)
-3) Once you get the `series.tab` files you will be able to process the genotypes in R using `library(fishbone)` designed for allele calling. See `NGS_pipeline.R`.
+3) Once you get the `series.tab` files you will be able to process the genotypes in R using `library(fishbone)`* designed for allele calling. See `NGS_pipeline.R`.
+
+* You can install this using `devtools::install_github("romunov/fishbone")`, but you will need the appropriate tool chain.
 
 ```
 Fasteris DinAlpBear data
