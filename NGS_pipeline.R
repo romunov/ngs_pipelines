@@ -28,7 +28,7 @@ if (do.chunk.init) {
 }
 
 # Store results of step 1 and 2 in this folder
-dir.lsl <- "./3_lib_sample_locus" # notice no trailing slash
+dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
 if (!dir.exists(dir.lsl)) { # create if doesn't exist
   dir.create(dir.lsl)
 }
@@ -52,14 +52,14 @@ if (do.chunk1) {
   
   # load data and sample names
   message("Importing files.")
-  sn <- list.files(path = "./1_ngsfilters_hiseq1", pattern = ".ngsfilter", full.names = TRUE)
+  sn <- list.files(path = "./DAB/1_ngsfilters_hiseq1", pattern = ".ngsfilter", full.names = TRUE)
   
   message(sprintf("Found %s ngs filters", length(sn)))
   names(sn) <- basename(sn)
   sn <- as.list(sn)
   sn <- sapply(sn, read.table, simplify = FALSE)
   
-  inputfile <- list.files("./2_uniq_tab_hiseq1", pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
+  inputfile <- list.files("./DAB/2_uniq_tab_hiseq1", pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
   libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
   libnum <- sprintf("%02d", as.numeric(libnum))
   
@@ -94,7 +94,6 @@ if (do.chunk1) {
   i <- 1
   
   out <- sapply(X = slc, FUN = function(x, dir.lsl) {
-    browser()
     message(sprintf("Processing %s (%d/%d)", unique(x$samplename), i, numsam)) # scoping out of current env!
     i <- i + 1
     out <- parApply(cl = cl, X = x, MARGIN = 1, FUN = function(y, outdir) {
@@ -296,14 +295,14 @@ if (do.chunk3) {
   
   ## Save data into a .RData file in case shit hits the fan.
   genotypes <- genotypes[!is.na(genotypes)]
-  save(genotypes, file = "./raw_genotypes_dab_hiseq1.RData")
+  save(genotypes, file = "./DAB/data/raw_genotypes_dab_hiseq1.RData")
 }
 
 if (do.chunk4) {
   #### Prepare data for saving. ####
   ##################################
   require(data.table)
-  load("./raw_genotypes_dab_hiseq1.RData")
+  load("./DAB/data/raw_genotypes_dab_hiseq1.RData")
   genotypes <- rbindlist(genotypes)
   
   # Save blk data into its own data.frame for tidy purposes.
@@ -343,7 +342,7 @@ if (do.chunk4) {
   names(gt) <- c("Sample_Name", "Plate", "Read_Count", "Marker", "Run_Name", "length", "Position", "Sequence")
   
   # add tag combo
-  xy <- sapply(list.files("./1_ngsfilters_hiseq1/", pattern = ".ngsfilter", full.names = TRUE),
+  xy <- sapply(list.files("./DAB/1_ngsfilters_hiseq1/", pattern = ".ngsfilter", full.names = TRUE),
                FUN = read.table, simplify = FALSE)
   xy <- do.call(rbind, xy)
   rownames(xy) <- NULL
@@ -358,9 +357,7 @@ if (do.chunk4) {
   gt[, fn := NULL]
   gt[, fl := NULL]
   
-  save(gt, file = "genotypes_dab_hiseq1_cleaned.RData")
-  
-  fwrite(gt[gt$Sample_Name %in% "EM.1CPA", ], file = "EM.1CPA.txt")
+  save(gt, file = "./DAB/data/genotypes_dab_hiseq1_cleaned.RData")
 }
 
 if (do.chunk5) {
