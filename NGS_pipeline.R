@@ -373,4 +373,17 @@ if (do.chunk4) {
 if (do.chunk5) {
   # Clean genotypes ####
   #####
+  require(data.table)
+  library(dplyr)
+  library(fishbone)
+  
+  load("./DAB/data/genotypes_dab_hiseq1_cleaned.RData")
+  
+  mt <- fread("./DAB/pars.csv", dec = ",",
+              colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
+              stringsAsFactors = FALSE, header = TRUE)
+  # gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
+  
+  gen <- gt[, callAllele(.SD, tbase = mt), by = list(Sample_Name, Marker, Plate)]
+  
 }
