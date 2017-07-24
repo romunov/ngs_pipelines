@@ -28,9 +28,19 @@ if (do.chunk.init) {
 }
 
 # Store results of step 1 and 2 in this folder
+dir.ngsfiler <- "./DAB/1_ngsfilters_hiseq1"
+if (!dir.exists(dir.ngsfiler)) {
+  dir.create(dir.ngsfiler)
+}
+
 dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
 if (!dir.exists(dir.lsl)) { # create if doesn't exist
   dir.create(dir.lsl)
+}
+
+dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
+if (!dir.exists(dir.uniq.tab)) {
+  dir.create(dir.uniq.tab)
 }
 
 if (do.chunk1) {
@@ -52,14 +62,14 @@ if (do.chunk1) {
   
   # load data and sample names
   message("Importing files.")
-  sn <- list.files(path = "./DAB/1_ngsfilters_hiseq1", pattern = ".ngsfilter", full.names = TRUE)
+  sn <- list.files(path = dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE)
   
   message(sprintf("Found %s ngs filters", length(sn)))
   names(sn) <- basename(sn)
   sn <- as.list(sn)
   sn <- sapply(sn, read.table, simplify = FALSE)
   
-  inputfile <- list.files("./DAB/2_uniq_tab_hiseq1", pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
+  inputfile <- list.files(dir.uniq.tab, pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
   libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
   libnum <- sprintf("%02d", as.numeric(libnum))
   
