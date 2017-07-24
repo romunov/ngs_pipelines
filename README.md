@@ -6,6 +6,14 @@ This is how I analyzed NGS data for the `DinAlp bear` project.
 
 * You can install this using `devtools::install_github("romunov/fishbone")`, but you will need the appropriate tool chain.
 
+Files/folders in `/DAB` are:
+* `pars.csv` - list of parameters used for allele calling
+* `/1_ngsfilters_hiseq1`: ngs filters for hiseq run 1
+* `/2_uniq_tab_hiseq1`: result of obitools pipeline
+* `/3_lib_sample_locus`: final result of obitools pipeline, incl. *serie.tab files produced by `microsatTabToseries.py` script
+* `/aliquot_plates`: which plates comprise a library and which sample was put into which position
+* `/data`: this is where the genotypes are at before they're shipped off
+
 ```
 Fasteris DinAlpBear data
 # download all data (5 minutes/file)
