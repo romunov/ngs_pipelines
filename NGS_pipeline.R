@@ -374,7 +374,6 @@ if (do.chunk5) {
   # Clean genotypes ####
   #####
   require(data.table)
-  library(dplyr)
   library(fishbone)
   
   load("./DAB/data/genotypes_dab_hiseq1_cleaned.RData")
@@ -384,6 +383,6 @@ if (do.chunk5) {
               stringsAsFactors = FALSE, header = TRUE)
   # gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
   
-  gen <- gt[, callAllele(.SD, tbase = mt), by = list(Sample_Name, Marker, Plate)]
+  gen <- gt[, callAllele(c(.BY, .SD), tbase = mt), by = list(Sample_Name, Marker, Plate)]
   
 }
