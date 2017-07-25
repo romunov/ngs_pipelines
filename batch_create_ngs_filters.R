@@ -11,15 +11,16 @@ primers <- as.data.frame(read_excel("./DAB/aliquot_plates/input_primers_tags.xls
 PP <- as.data.frame(read_excel("./DAB/aliquot_plates/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx", 
                                sheet = "Tag crossbreeding", skip = 42))
 # PP has columns position, slo, PP1, PP2, ... PP8
-AP <- data.frame(location = list.files("./aliquot_plates/HiSEQ_run1/", pattern = "\\.xls$", full.names = TRUE))
+# specify folder where to look for aliquot plates
+AP <- data.frame(location = list.files("./DAB/aliquot_plates/HiSEQ_run2/", pattern = "_DAB_A\\d+\\.xls$", full.names = TRUE))
 AP$name <- gsub("^.*(A\\d+)\\.xls$", "\\1", AP$location)
 
 # 2. Find which AP is added to which PP.
 pa.loc <- as.data.frame(read_excel("./DAB/aliquot_plates/NGS.Plates.Barcodes.DAB2017.Final.xlsx", 
                                    sheet = "PCR_Plates_4Reps"))
 
-# select first HiSEQ run (12 libraries)
-pa.loc <- droplevels(pa.loc[pa.loc$Library_BC %in% sprintf("DAB%02d", 1:12, sep = ""), ])
+# select which libraries you wish to run through this script
+pa.loc <- droplevels(pa.loc[pa.loc$Library_BC %in% sprintf("DAB%02d", 13:24, sep = ""), ])
 
 pa.loc <- split(pa.loc, f = pa.loc$Library_BC)
 
