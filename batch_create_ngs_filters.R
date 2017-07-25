@@ -6,13 +6,15 @@
 
 library(readxl)
 
+dir.AP <- "./DAB/aliquot_plates/HiSEQ_run2/" # folder where aliquote plates are located
+
 # 1. Load PP and AP data
 primers <- as.data.frame(read_excel("./DAB/aliquot_plates/input_primers_tags.xlsx", sheet = "primers"))
 PP <- as.data.frame(read_excel("./DAB/aliquot_plates/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx", 
                                sheet = "Tag crossbreeding", skip = 42))
 # PP has columns position, slo, PP1, PP2, ... PP8
 # specify folder where to look for aliquot plates
-AP <- data.frame(location = list.files("./DAB/aliquot_plates/HiSEQ_run2/", pattern = "_DAB_A\\d+\\.xls$", full.names = TRUE))
+AP <- data.frame(location = list.files(dir.AP, pattern = "_DAB_A\\d+\\.xls$", full.names = TRUE))
 AP$name <- gsub("^.*(A\\d+)\\.xls$", "\\1", AP$location)
 
 # 2. Find which AP is added to which PP.
