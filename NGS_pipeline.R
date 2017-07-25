@@ -381,8 +381,10 @@ if (do.chunk5) {
   mt <- fread("./DAB/pars.csv", dec = ",",
               colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
               stringsAsFactors = FALSE, header = TRUE)
-  # gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
+  gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
   
-  gen <- gt[, callAllele(c(.BY, .SD), tbase = mt), by = list(Sample_Name, Marker, Plate)]
-  
+  empty <- sapply(gen, nrow)
+  gen.empty <- names(gen[empty])
+  gen[empty == 0] <- NULL
+  gen2 <- sapply(gen[1:100], FUN = callAllele, tbase = mt, simplify = FALSE)
 }
