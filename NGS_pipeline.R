@@ -373,7 +373,7 @@ if (do.chunk4) {
 if (do.chunk5) {
   # Clean genotypes ####
   #####
-  library(parallel)
+  # library(parallel)
   require(data.table)
   library(fishbone)
   
@@ -384,11 +384,11 @@ if (do.chunk5) {
               stringsAsFactors = FALSE, header = TRUE)
   gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
   # gen2 <- gt[, callAllele(c(.BY, .SD), tbase = mt), by = .(Sample_Name, Marker, Plate)]
-  # system.time(gen2 <- sapply(gen, FUN = callAllele, tbase = mt, simplify = FALSE))
+  system.time(out <- sapply(gen, FUN = callAllele, tbase = mt, simplify = FALSE))
   
-  cl <- makeCluster(4)
-  clusterEvalQ(cl = cl, library(fishbone))
-  invisible(out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE))
+  # cl <- makeCluster(8)
+  # clusterEvalQ(cl = cl, library(fishbone))
+  # invisible(out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE))
   
   empty <- sapply(gen, nrow)
   gen.empty <- names(gen[empty])
