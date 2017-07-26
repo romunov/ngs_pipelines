@@ -352,7 +352,7 @@ if (do.chunk4) {
   names(gt) <- c("Sample_Name", "Plate", "Read_Count", "Marker", "Run_Name", "length", "Position", "Sequence")
   
   # add tag combo
-  xy <- sapply(list.files("./DAB/1_ngsfilters_hiseq1/", pattern = ".ngsfilter", full.names = TRUE),
+  xy <- sapply(list.files(dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE),
                FUN = read.table, simplify = FALSE)
   xy <- do.call(rbind, xy)
   rownames(xy) <- NULL
@@ -373,6 +373,7 @@ if (do.chunk4) {
 if (do.chunk5) {
   # Clean genotypes ####
   #####
+  library(parallel)
   require(data.table)
   library(fishbone)
   
@@ -382,9 +383,24 @@ if (do.chunk5) {
               colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
               stringsAsFactors = FALSE, header = TRUE)
   gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
+  # gen2 <- gt[, callAllele(c(.BY, .SD), tbase = mt), by = .(Sample_Name, Marker, Plate)]
+  # system.time(gen2 <- sapply(gen, FUN = callAllele, tbase = mt, simplify = FALSE))
+  
+  cl <- makeCluster(4)
+  clusterEvalQ(cl = cl, library(fishbone))
+  invisible(out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE))
   
   empty <- sapply(gen, nrow)
   gen.empty <- names(gen[empty])
   gen[empty == 0] <- NULL
-  gen2 <- sapply(gen[1:100], FUN = callAllele, tbase = mt, simplify = FALSE)
+  
+  save(out, file = "./DAB/data/final_hiseq1.RData")
+  
+  # these runs had no candidate alleles
+  no.alleles <- sapply(out, class)
+  out <- out[no.alleles != "character"]
+  
+  out <- rbindlist(out)
+  
+  fwrite(out, file = "./DAB/data/dab_hiseq1_genotypes.txt")
 }
