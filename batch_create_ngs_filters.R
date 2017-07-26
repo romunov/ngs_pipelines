@@ -6,7 +6,8 @@
 
 library(readxl)
 
-dir.AP <- "./DAB/aliquot_plates/HiSEQ_run2/" # folder where aliquote plates are located
+dir.AP <- "./DAB/aliquot_plates/HiSEQ_run2" # folder where aliquote plates are located
+dir.output <- "./DAB/1_ngsfilters_hiseq2" # no trailing slash, where files are to be stored
 
 # 1. Load PP and AP data
 primers <- as.data.frame(read_excel("./DAB/aliquot_plates/input_primers_tags.xlsx", sheet = "primers"))
@@ -27,7 +28,7 @@ pa.loc <- droplevels(pa.loc[pa.loc$Library_BC %in% sprintf("DAB%02d", 13:24, sep
 pa.loc <- split(pa.loc, f = pa.loc$Library_BC)
 
 # For library, split by plate...
-out <- sapply(pa.loc, FUN = function(x, PP, AP, primers) {
+out <- sapply(pa.loc, FUN = function(x, PP, AP, primers, outloc = dir.output) {
   x.split <- split(x, f = 1:nrow(x))
   
   # ... and for each plate, construct NGS filter
@@ -56,7 +57,7 @@ out <- sapply(pa.loc, FUN = function(x, PP, AP, primers) {
   }, PP = PP, AP = AP, primers = primers, simplify = FALSE)
   
   out <- do.call(rbind, out)
-  write.table(out, file = sprintf("%s.ngsfilter", unique(x$Library_BC)), row.names = FALSE,
+  write.table(out, file = sprintf("%s/%s.ngsfilter", outloc, unique(x$Library_BC)), row.names = FALSE,
               col.names = FALSE, quote = FALSE, sep = "\t", fileEncoding = "UTF-8")
   out
-}, PP = PP, AP = AP, primers = primers, simplify = FALSE)
+}, PP = PP, AP = AP, primers = primers, outloc = dir.output, simplify = FALSE)
