@@ -1,29 +1,39 @@
 library(data.table)
-library(tidyr)
 
-xy.file <- "./DAB/zf_hiseq2/MICROSAT.PCR_DAB13_M00CL_ZF.uniq.tab"
-xy <- fread(xy.file,
-                 header = TRUE)
+xy.file <- list.files("./DAB/zf_hiseq2/", full.names = TRUE)
 
-samplecols <- names(xy)[grepl("sample:", names(xy))]
+xy <- sapply(xy.file, FUN = function(fl) {
+  x <- fread(fl)
+  samplecols <- names(x)[grepl("sample:", names(x))]
+  x[, count := Reduce("+", .SD), .SDcols = samplecols] # make sure correct count
+  
+  # remove zero alleles
+  x <- x[count != 0, ]
+  x$count <- NULL
+  x$id <- NULL
+  x <- melt(x, id.vars = c("seq_length", "sequence"), value.name = "count",
+            variable.name = "Sample_Name")
+  
+  # add information of position, run, and library
+  # also, make sample name pretty
+  x[, position := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\2", Sample_Name)]
+  x[, run := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\3", Sample_Name)]
+  x[, Sample_Name := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\1", Sample_Name)]
+  x[, library := gsub("^.*_(DAB\\d+)_.*$", "\\1", basename(fl))]
+  x <- setkey(x, run, count)
+  x <- x[i = order(-run, count, decreasing = TRUE), j = .(Sample_Name, run, count, seq_length, position, library, sequence), by = .(run)]
+  x
+}, simplify = FALSE)
+xy <- rbindlist(xy)
 
-# make sure the sum is correct
-xy[, count := Reduce("+", .SD), .SDcols = samplecols]
+# find sex based on ZFX/Y
+xy[count > 100, j = .N, by = .(Sample_Name, run)]
+# N == 2: male
+# N == 1: female
 
-# remove zero alleles
-xy <- xy[count > 0, ]
-xy$count <- NULL
-xy$id <- NULL
-
-xy <- melt(xy, id.vars = c("seq_length", "sequence"), value.name = "count",
-          variable.name = "Sample_Name")
-
-# add information of position, run, and library
-# also, make sample name pretty
-xy[, position := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\2", Sample_Name)]
-xy[, run := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\3", Sample_Name)]
-xy[, Sample_Name := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\1", Sample_Name)]
-xy[, library := gsub("^.*_(DAB\\d+)_.*$", "\\1", basename(xy.file))]
-
-
-     
+i <- xy[, unique(Sample_Name)]
+xy[Sample_Name == i[22], .(Sample_Name, run, count, seq_length, sequence)]
+xy[Sample_Name == "M05MA", ]
+print(xy[Sample_Name == "TM001C", ], 400)
+print(xy[sequence == "ttgaatcgccaccttttggcggtccacagcaagaactttcctcatatttgtgtggagtgcggtaaaggttttcgtcacccgtcagagctcaaaaagcacatgcg" |
+           sequence == "ttgaatcgccaccttttggcggtccacagcaagaactttcctcatatttgtgtggagtgcggtaaaggttttcgtcacccatcagagctcaaaaagcacatgcg", ], 100)
