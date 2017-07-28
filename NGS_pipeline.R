@@ -3,15 +3,16 @@
 
 library(parallel)
 library(tidyr)
+library(data.table)
 
 source("microsatTabExtract.R")
 
-do.chunk.init <- FALSE
-do.chunk1 <- FALSE
-do.chunk2 <- FALSE
-do.chunk3 <- FALSE
-do.chunk4 <- TRUE
-do.chunk5 <- TRUE
+do.chunk.init <- TRUE
+do.chunk1 <- FALSE # create files for each sample/locus using microsatTabExtract
+do.chunk2 <- FALSE # find series using python script
+do.chunk3 <- FALSE # prepare candidate alleles
+do.chunk4 <- FALSE # clean candidate alleles
+do.chunk5 <- TRUE # call alleles
 
 # parallel stuff
 if (do.chunk.init) {
@@ -28,19 +29,23 @@ if (do.chunk.init) {
 }
 
 # Store results of step 1 and 2 in this folder
-dir.ngsfiler <- "./DAB/1_ngsfilters_hiseq1"
-if (!dir.exists(dir.ngsfiler)) {
-  dir.create(dir.ngsfiler)
+# dir.ngsfilter <- "./DAB/1_ngsfilters_hiseq1"
+dir.ngsfilter <- "./1_ngsfilters_hiseq2"
+# dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
+dir.uniq.tab <- "./2_uniq_tab_hiseq2"
+# dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
+dir.lsl <- "./3_lib_sample_locus_hiseq2"
+
+if (!dir.exists(dir.ngsfilter)) {
+  dir.create(dir.ngsfilter)
 }
 
-dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
-if (!dir.exists(dir.lsl)) { # create if doesn't exist
-  dir.create(dir.lsl)
-}
-
-dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
 if (!dir.exists(dir.uniq.tab)) {
   dir.create(dir.uniq.tab)
+}
+
+if (!dir.exists(dir.lsl)) { # create if doesn't exist
+  dir.create(dir.lsl)
 }
 
 if (do.chunk1) {
@@ -101,12 +106,13 @@ if (do.chunk1) {
   
   # progress report
   numsam <- length(slc)
-  i <- 1
+  i <- 0
   
-  out <- sapply(X = slc, FUN = function(x, dir.lsl) {
+  out <- sapply(X = slc, FUN = function(x, dir.lsl, outdir) {
+    i <<- i + 1
     message(sprintf("Processing %s (%d/%d)", unique(x$samplename), i, numsam)) # scoping out of current env!
-    i <- i + 1
     out <- parApply(cl = cl, X = x, MARGIN = 1, FUN = function(y, outdir) {
+    # out <- apply(X = x, MARGIN = 1, FUN = function(y, outdir) {
       microsatTabExtract(filename = y["inputfile"], samplename = y["samplename"], outdir = outdir)
     }, outdir = outdir)
   }, outdir = dir.lsl)
@@ -131,11 +137,11 @@ if (do.chunk2) {
   # NOTICE: ZF locus is excluded from the analysis
   # NOTICE: copy microsatTabToseries.py to where the uniq.tab files are being processed
   # lsl = library-sample-locus files
-  
+  oldwd <- getwd()
   file.copy(from = "microsatTabToseries.py", to = paste(dir.lsl, "microsatTabToseries.py", sep = "/"),
             overwrite = TRUE)
   
-  lsl <- list.files(path = dir.lsl, pattern = "MICROSAT.PCR_.*uniq.tab$")
+  lsl <- list.files(path = dir.lsl, pattern = "_\\d+\\.uniq\\.tab$")
   # load motif data
   motif <- read.table("locus_motifs.txt", header = TRUE,
                       colClasses = c("character", "character"))
@@ -150,11 +156,20 @@ if (do.chunk2) {
   clusterExport(cl = cl, varlist = "dir.lsl")
   clusterEvalQ(cl = cl, expr = {setwd(dir.lsl)})
   
+  setwd(dir.lsl)
   parSapply(cl = cl, X = lsl, FUN = function(x, m) {
     findmotif <- gsub("(^.*_)([[:alnum:]]{2})(\\.uniq.tab$)", "\\2", x, perl = TRUE)
     motif.in <- m[m$locus == findmotif, "motif"]
     system(sprintf("python microsatTabToseries.py -f %s -m %s", x, motif.in))
   }, m = motif)
+
+  # sapply(X = lsl, FUN = function(x, m) {
+  #   findmotif <- gsub("(^.*_)([[:alnum:]]{2})(\\.uniq.tab$)", "\\2", x, perl = TRUE)
+  #   motif.in <- m[m$locus == findmotif, "motif"]
+  #   system(sprintf("python microsatTabToseries.py -f %s -m %s", x, motif.in))
+  # }, m = motif)
+  
+  setwd(oldwd)
 }
 
 if (do.chunk3) {
@@ -230,20 +245,14 @@ if (do.chunk3) {
   
   # weird samples
   ws <- sapply(split(xy, f = xy$sample), nrow)
+  tws <- table(ws)
   
   # Notice that some samples have been used in more than 1 library.
   message("Number of loci per sample.")
-  print(table(ws))
-  
-  message("Samples with 156 files.")
-  print(ws[ws == 156])
-  
-  message("Samples with 26 files.")
-  print(ws[ws == 26])
-  
-  message("Samples with 39 files.")
-  print(ws[ws == 39])
-  
+  sapply(names(tws)[2:length(tws)], FUN = function(x) {
+    ws[ws == x]
+  })
+
   message(sprintf("Processing %d files.", nrow(xy)))
   
   # For each file, read in the data, sort it according to total count of reads, remove unnecessary columns,
@@ -305,19 +314,23 @@ if (do.chunk3) {
   
   ## Save data into a .RData file in case shit hits the fan.
   genotypes <- genotypes[!is.na(genotypes)]
-  save(genotypes, file = "./DAB/data/raw_genotypes_dab_hiseq1.RData")
+  save(genotypes, file = "raw_genotypes_dab_hiseq2.RData")
 }
 
 if (do.chunk4) {
+  
+  message(sprintf("(%s) Processing chunk #4", Sys.time()))
   #### Prepare data for saving. ####
   ##################################
-  require(data.table)
-  load("./DAB/data/raw_genotypes_dab_hiseq1.RData")
-  genotypes <- rbindlist(genotypes)
+  if (!do.chunk3) {
+    require(data.table)
+    load("raw_genotypes_dab_hiseq2.RData")
+    genotypes <- rbindlist(genotypes)
+  }
   
   # Save blk data into its own data.frame for tidy purposes.
   # genotypes$sequence <- as.character(genotypes$sequence)
-  gt <- genotypes # I feel typing "gt" is faster than "genotypes"
+  gt <- genotypes
   rm(genotypes)
   
   # check if each sequence has only one locus
@@ -354,7 +367,8 @@ if (do.chunk4) {
   # add tag combo
   xy <- sapply(list.files(dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE),
                FUN = read.table, simplify = FALSE)
-  xy <- do.call(rbind, xy)
+  # xy <- do.call(rbind, xy)
+  xy <- rbindlist(xy)
   rownames(xy) <- NULL
   xy <- as.data.table(xy[, c(1, 2, 3)])
   names(xy) <- c("V1", "V2", "TagCombo")
@@ -367,40 +381,44 @@ if (do.chunk4) {
   gt[, fn := NULL]
   gt[, fl := NULL]
   
-  save(gt, file = "./DAB/data/genotypes_dab_hiseq1_cleaned.RData")
+  message(sprintf("(%s) Chunk4: Writing data to file.", Sys.time()))
+  save(gt, file = "genotypes_dab_hiseq2_cleaned.RData")
+  message(sprintf("(%s) Done processing chunk #4", Sys.time()))
 }
 
 if (do.chunk5) {
+  message(sprintf("(%s) Chunk5: Processing chunk #5", Sys.time()))
+  
   # Clean genotypes ####
   #####
-  # library(parallel)
   require(data.table)
   library(fishbone)
   
-  load("./DAB/data/genotypes_dab_hiseq1_cleaned.RData")
+  clusterEvalQ(cl = cl, expr = library(fishbone))
   
-  mt <- fread("./DAB/pars.csv", dec = ",",
+  load("genotypes_dab_hiseq2_cleaned.RData")
+  mt <- fread("pars.csv", dec = ",",
               colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
               stringsAsFactors = FALSE, header = TRUE)
+  
+  message(sprintf("(%s) Chunk5: Splitting genotypes by sample name, marker and plate.", Sys.time()))
   gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
-  # gen2 <- gt[, callAllele(c(.BY, .SD), tbase = mt), by = .(Sample_Name, Marker, Plate)]
-  system.time(out <- sapply(gen, FUN = callAllele, tbase = mt, simplify = FALSE))
   
-  # cl <- makeCluster(8)
-  # clusterEvalQ(cl = cl, library(fishbone))
-  # invisible(out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE))
+  message(sprintf("(%s) Chunk5: Calling alleles, this may take a while.", Sys.time()))
+  out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE)
   
-  empty <- sapply(gen, nrow)
-  gen.empty <- names(gen[empty])
-  gen[empty == 0] <- NULL
-  
-  save(out, file = "./DAB/data/final_hiseq1.RData")
+  message(sprintf("(%s) Chunk5: Saving final RData file", Sys.time()))
+  save(out, file = "final_hiseq2.RData")
   
   # these runs had no candidate alleles
   no.alleles <- sapply(out, class)
   out <- out[no.alleles != "character"]
-  
+  no.alleles <- sapply(out, nrow)
+  no.alleles <- unlist(no.alleles)
+  out <- out[no.alleles > 0]
   out <- rbindlist(out)
   
-  fwrite(out, file = "./DAB/data/dab_hiseq1_genotypes.txt")
+  message("Chunk5: Writing final genotypes.")
+  fwrite(out, file = "dab_hiseq2_genotypes.txt")
+  message("Done processing chunk #5.")
 }
