@@ -1,0 +1,57 @@
+---
+title: "DAB genotypes, the exploration"
+author: "Roman Luštrik"
+date: "28 julij 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(ggplot2)
+```
+
+HiSEQ run sent to Fasteris, CH on 17.7.2017.
+```{r}
+xy1 <- fread("./DAB/data/dab_hiseq1_genotypes.txt", stringsAsFactors = FALSE,
+            colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                              numeric = c(2, 3, 6)))
+```
+
+How many different samples do we find?
+```{r}
+length(unique(xy1[, Sample_Name]))
+```
+
+Are there any blanks?
+```{r}
+xy1[grepl("blank", Sample_Name), ]
+```
+It would appear they've been eliminated from the run.
+
+How many repeats per sample do we detect?
+```{r}
+ggplot(xy1[, j = .N, by = .(Sample_Name, Marker)], aes(x = N)) +
+  theme_bw() +
+  geom_histogram() +
+  scale_x_continuous(limits = c(0, 35)) +
+  facet_wrap(~ Marker)
+```
+
+Histogram of lengths of alleles give loci.
+```{r}
+ggplot(xy1[, j = length, by = .(Marker)], aes(x = length)) +
+  theme_bw() +
+  geom_histogram() +
+  facet_wrap(~ Marker)
+```
+
+HiSEQ run sent to Fasteris, CH on 25.7.2017.
+
+```{r}
+# hiseq run #2 (25.7.2017)
+xy2 <- fread("./DAB/data/dab_hiseq2_genotypes.txt", stringsAsFactors = FALSE,
+            colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                              numeric = c(2, 3, 6)))
+```
+
