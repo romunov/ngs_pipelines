@@ -56,10 +56,13 @@ sexy[sequence %in% seqUAY, sex := "Y"]
 # write intermediate (raw) result
 fwrite(sexy, file = file.out)
 
+threshold <- 0.5
 x <- sexy[Sample_Name %in% "M00CL", -"sequence"]
 x <- x[-2]
 x <- x[order(Sample_Name, run, sex)]
 x[, xrle := seq(1:.N), by = .(run)]
 x <- dcast(x, run + Sample_Name + seq_length + position + library ~ xrle, value.var = c("count", "sex"))
 x[, ratio := count_1/count_2]
-x[, ifelse(ratio > 0.5, sex_1, sex_2)]
+x[, sex := ifelse(ratio > threshold, "F", "M")]
+x[, sex := ifelse(is.na(sex), "C", sex)]
+x
