@@ -62,4 +62,4 @@ x <- x[order(Sample_Name, run, sex)]
 x[, xrle := seq(1:.N), by = .(run)]
 x <- dcast(x, run + Sample_Name + seq_length + position + library ~ xrle, value.var = c("count", "sex"))
 x[, ratio := count_1/count_2]
-x
+x[, ifelse(ratio > 0.5, sex_1, sex_2)]
