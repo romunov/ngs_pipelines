@@ -73,7 +73,7 @@ lrn <- fread("./DAB/barkode_spol.txt")
 # find samples where sex is known
 known.sex <- sexy[sexy$Sample_Name %in% lrn$Sample_Name, ]
 # merge with genetic data
-known.sex <- known.sex[lrn, on = "Sample_Name"]
+known.sex <- merge(known.sex, lrn, by = "Sample_Name")
 # known.sex <- known.sex[order(Sample_Name, run, sex)]
 # reshape data to better fit our "wide" model
 known.sex <- dcast(known.sex, run + Sample_Name + seq_length + position + library + truesex ~ sex, 
