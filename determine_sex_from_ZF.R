@@ -65,4 +65,7 @@ sexy <- dcast(sexy, run + Sample_Name + seq_length + position + library ~ sex,
       value.var = c("count"))
 
 sexy <- sexy[order(Sample_Name, run)]
+sexy[, X := ifelse(is.na(X), 0, X)]
+sexy[, Y := ifelse(is.na(Y), 0, Y)]
+
 fwrite(sexy, file = "./DAB/data/dab_sex_hiseq1_not_called.txt")
