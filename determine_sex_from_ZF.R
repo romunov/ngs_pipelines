@@ -61,5 +61,8 @@ sexy[sequence %in% seqUAY, sex := "Y"]
 # write intermediate (raw) result
 fwrite(sexy, file = file.out)
 
-# add dcast from learn_to_id_sex.R
+sexy <- dcast(sexy, run + Sample_Name + seq_length + position + library ~ sex, 
+      value.var = c("count"))
 
+sexy <- sexy[order(Sample_Name, run)]
+fwrite(sexy, file = "./DAB/data/dab_sex_hiseq1_not_called.txt")
