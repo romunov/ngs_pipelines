@@ -7,11 +7,13 @@ library(plotly)
 
 #### INPUT ####
 # point this line to the folder where .uniqe.tab files of ZF are located
-# xy.file <- list.files("./DAB/zf_hiseq2/", full.names = TRUE)
-xy.file <- list.files("./DAB/zf_hiseq1/", full.names = TRUE)
+xy.file <- list.files("./DAB/zf_hiseq2/", full.names = TRUE)
+# xy.file <- list.files("./DAB/zf_hiseq1/", full.names = TRUE)
 # name of the file into which the results are to be written
-# file.out <- "./DAB/data/genetic_sex_hiseq2.txt"
-file.out <- "./DAB/data/dab_genetic_sex_hiseq1.txt"
+# file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq1.txt"
+# file.called <- "./DAB/data/dab_called_genetic_sex_hiseq1.txt"
+file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq2.txt"
+file.called <- "./DAB/data/dab_called_genetic_sex_hiseq2.txt"
 #### INPUT ####
 
 # for each file, extract alleles, along with position, run, sample name, library and order properly
@@ -54,12 +56,12 @@ uaxy <- c(seqUAX, seqUAY)
 sexy <- xy[sequence %in% uaxy, ]
 
 # add human readable designations for X and Y
-sexy[, sex := ""]
-sexy[sequence %in% seqUAX, sex := "X"]
-sexy[sequence %in% seqUAY, sex := "Y"]
+sexy[, seq := ""]
+sexy[sequence %in% seqUAX, seq := "X"]
+sexy[sequence %in% seqUAY, seq := "Y"]
 
 # write intermediate (raw) result
-fwrite(sexy, file = file.out)
+fwrite(sexy, file = file.out.seq)
 
 sexy <- dcast(sexy, run + Sample_Name + seq_length + position + library ~ sex, 
       value.var = c("count"))
@@ -68,4 +70,4 @@ sexy <- sexy[order(Sample_Name, run)]
 sexy[, X := ifelse(is.na(X), 0, X)]
 sexy[, Y := ifelse(is.na(Y), 0, Y)]
 
-fwrite(sexy, file = "./DAB/data/dab_sex_hiseq1_not_called.txt")
+fwrite(sexy, file = file.out.called)
