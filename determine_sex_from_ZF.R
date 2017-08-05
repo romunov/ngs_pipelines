@@ -63,11 +63,42 @@ sexy[sequence %in% seqUAY, seq := "Y"]
 # write intermediate (raw) result
 fwrite(sexy, file = file.out.seq)
 
-sexy <- dcast(sexy, run + Sample_Name + seq_length + position + library ~ sex, 
+sexy[, sequence := NULL]
+
+# sexy <- fread(file.out.seq)
+
+# samples with more than two alleles
+tm <- sexy[Sample_Name %in% sexy[, .N, by = .(Sample_Name, run, library)][N > 2, Sample_Name], ]
+tm <- tm[order(Sample_Name, run, library), ]
+# fwrite(tm, file = "./DAB/data/samples_with_more_than_two_alleles.txt", sep = "\t")
+
+# exclude samples with potential flaws
+sexy <- sexy[!(Sample_Name %in% unique(tm$Sample_Name)), ]
+
+# find which samples have more than two alleles per run
+sexy <- dcast(sexy, run + Sample_Name + seq_length + position + library ~ seq, 
       value.var = c("count"))
 
-sexy <- sexy[order(Sample_Name, run)]
+sexy <- sexy[order(library, Sample_Name, run)]
 sexy[, X := ifelse(is.na(X), 0, X)]
 sexy[, Y := ifelse(is.na(Y), 0, Y)]
 
-fwrite(sexy, file = file.out.called)
+# calculate coefficient of variation - this will tell us if the difference
+# between X and Y is large or not
+sexy[, mean := apply(sexy[, .(X, Y)], 1, mean)]
+sexy[, cv := apply(sexy[, .(X, Y)], 1, sd) / mean]
+
+cutoff.cv <- 0.75 # small means difference between X and Y are small and vice versa
+cutoff.abs <- 5 # how many reads should there be before we reliably determine sex
+
+# if Y is amplified more than X, deem this male
+sexy[cv < cutoff.cv, sex := "M"] # this also takes care of cases where X == Y
+sexy[Y > mean & X < mean & cv > cutoff.cv, sex := "M"]
+# if X is significantly higher than Y, deem this female
+sexy[X > mean & Y < mean & cv > cutoff.cv, sex := "F"]
+# ID of samples with really weak reads are deemed unreliable
+sexy[X < cutoff.abs & Y < cutoff.abs, sex := NA]
+
+sexy[, cv := round(cv, 2)]
+sexy <- sexy[, .(Sample_Name, run, position, library, mean, cv, X, Y, sex)]
+fwrite(sexy, file = file.called, sep = "\t")
