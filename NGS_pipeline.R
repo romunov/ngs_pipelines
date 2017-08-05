@@ -8,11 +8,11 @@ library(data.table)
 source("microsatTabExtract.R")
 
 do.chunk.init <- TRUE
-do.chunk1 <- FALSE # create files for each sample/locus using microsatTabExtract
+do.chunk1 <- TRUE # create files for each sample/locus using microsatTabExtract
 do.chunk2 <- FALSE # find series using python script
 do.chunk3 <- FALSE # prepare candidate alleles
 do.chunk4 <- FALSE # clean candidate alleles
-do.chunk5 <- TRUE # call alleles
+do.chunk5 <- FALSE # call alleles
 
 # parallel stuff
 if (do.chunk.init) {
@@ -29,12 +29,12 @@ if (do.chunk.init) {
 }
 
 # Store results of step 1 and 2 in this folder
-# dir.ngsfilter <- "./DAB/1_ngsfilters_hiseq1"
-dir.ngsfilter <- "./1_ngsfilters_hiseq2"
-# dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
-dir.uniq.tab <- "./2_uniq_tab_hiseq2"
-# dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
-dir.lsl <- "./3_lib_sample_locus_hiseq2"
+dir.ngsfilter <- "./DAB/1_ngsfilters_hiseq1"
+# dir.ngsfilter <- "./1_ngsfilters_hiseq2"
+dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
+# dir.uniq.tab <- "./2_uniq_tab_hiseq2"
+dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
+# dir.lsl <- "./3_lib_sample_locus_hiseq2"
 
 if (!dir.exists(dir.ngsfilter)) {
   dir.create(dir.ngsfilter)
