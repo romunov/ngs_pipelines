@@ -1,3 +1,5 @@
+# This script will take aliquot plates, forward and reverse primer sequences, sequences of tags and create
+# a combination
 # Glossary:
 # PP = primer plate, combination of tags and primers. Tags are unique for each well. Eight plates per library.
 # AP = aliquot plate, each well holds its own sample.
@@ -10,15 +12,22 @@ dir.AP <- "./DAB/aliquot_plates/HiSEQ_run2" # folder where aliquote plates are l
 dir.output <- "./DAB/1_ngsfilters_hiseq2" # no trailing slash, where files are to be stored
 
 # 1. Load PP and AP data
+# Primer names and forward/reverse sequences.
 primers <- as.data.frame(read_excel("./DAB/aliquot_plates/input_primers_tags.xlsx", sheet = "primers"))
+
+# Combination of tags to determine sample position/identity.
+# PP has columns position, slo, PP1, PP2, ... PP8 which designates which position (1-96) holds which forward
+# and reverse tag combination.
 PP <- as.data.frame(read_excel("./DAB/aliquot_plates/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx", 
                                sheet = "Tag crossbreeding", skip = 42))
-# PP has columns position, slo, PP1, PP2, ... PP8
-# specify folder where to look for aliquot plates
+
+# AP will hold links to files to aliquot plates. Data is arranged in columns. Each row holds its own
+# sample (name) which will be used to construct .ngsfilter.
 AP <- data.frame(location = list.files(dir.AP, pattern = "_DAB_A\\d+\\.xls$", full.names = TRUE))
 AP$name <- gsub("^.*(A\\d+)\\.xls$", "\\1", AP$location)
 
 # 2. Find which AP is added to which PP.
+# This file contains data which maps which aliquot plate comes from which library.
 pa.loc <- as.data.frame(read_excel("./DAB/aliquot_plates/NGS.Plates.Barcodes.DAB2017.Final.xlsx", 
                                    sheet = "PCR_Plates_4Reps"))
 
