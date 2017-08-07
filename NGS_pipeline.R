@@ -14,6 +14,17 @@ do.chunk3 <- FALSE # prepare candidate alleles
 do.chunk4 <- FALSE # clean candidate alleles
 do.chunk5 <- FALSE # call alleles
 
+# for chunks running in parallel, always turn on init chunk to start up workers
+if (do.chunk1) do.chunk.init <- TRUE
+if (do.chunk2) do.chunk.init <- TRUE
+if (do.chunk5) do.chunk.init <- TRUE
+
+# output files
+raw.rdata <- "raw_genotypes_dab_hiseq2.RData"
+raw.cleaned.rdata <- "genotypes_dab_hiseq2_cleaned.RData"
+raw.final <- "final_hiseq2.RData"
+raw.final.txt <- "dab_hiseq2_genotypes.txt"
+
 # parallel stuff
 if (do.chunk.init) {
   # start cores
@@ -137,6 +148,7 @@ if (do.chunk2) {
   # NOTICE: ZF locus is excluded from the analysis
   # NOTICE: copy microsatTabToseries.py to where the uniq.tab files are being processed
   # lsl = library-sample-locus files
+  
   oldwd <- getwd()
   file.copy(from = "microsatTabToseries.py", to = paste(dir.lsl, "microsatTabToseries.py", sep = "/"),
             overwrite = TRUE)
@@ -314,7 +326,7 @@ if (do.chunk3) {
   
   ## Save data into a .RData file in case shit hits the fan.
   genotypes <- genotypes[!is.na(genotypes)]
-  save(genotypes, file = "raw_genotypes_dab_hiseq2.RData")
+  save(genotypes, file = raw.rdata)
 }
 
 if (do.chunk4) {
@@ -324,7 +336,7 @@ if (do.chunk4) {
   ##################################
   if (!do.chunk3) {
     require(data.table)
-    load("raw_genotypes_dab_hiseq2.RData")
+    load(raw.rdata)
     genotypes <- rbindlist(genotypes)
   }
   
@@ -367,13 +379,13 @@ if (do.chunk4) {
   # add tag combo
   xy <- sapply(list.files(dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE),
                FUN = read.table, simplify = FALSE)
-  # xy <- do.call(rbind, xy)
+
   xy <- rbindlist(xy)
   rownames(xy) <- NULL
   xy <- as.data.table(xy[, c(1, 2, 3)])
   names(xy) <- c("V1", "V2", "TagCombo")
   
-  
+  # create columns by which to merge
   gt[, fn := sprintf("%s_%s_PP%s", Sample_Name, Position, Plate)]
   gt[, fl := sprintf(sprintf("UA_MxRout1_%s", Marker))]
   
@@ -382,21 +394,23 @@ if (do.chunk4) {
   gt[, fl := NULL]
   
   message(sprintf("(%s) Chunk4: Writing data to file.", Sys.time()))
-  save(gt, file = "genotypes_dab_hiseq2_cleaned.RData")
+  save(gt, file = raw.cleaned.rdata)
   message(sprintf("(%s) Done processing chunk #4", Sys.time()))
 }
 
 if (do.chunk5) {
-  message(sprintf("(%s) Chunk5: Processing chunk #5", Sys.time()))
   
-  # Clean genotypes ####
+  message(sprintf("(%s) Chunk5: Processing chunk #5", Sys.time()))
+
+  # Clean genotypes and calling alleles ####
   #####
   require(data.table)
   library(fishbone)
   
   clusterEvalQ(cl = cl, expr = library(fishbone))
   
-  load("genotypes_dab_hiseq2_cleaned.RData")
+  if (!exists("gt")) load(raw.cleaned.rdata)
+      
   mt <- fread("pars.csv", dec = ",",
               colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
               stringsAsFactors = FALSE, header = TRUE)
@@ -408,7 +422,7 @@ if (do.chunk5) {
   out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE)
   
   message(sprintf("(%s) Chunk5: Saving final RData file", Sys.time()))
-  save(out, file = "final_hiseq2.RData")
+  save(out, file = raw.final)
   
   # these runs had no candidate alleles
   no.alleles <- sapply(out, class)
@@ -419,6 +433,6 @@ if (do.chunk5) {
   out <- rbindlist(out)
   
   message("Chunk5: Writing final genotypes.")
-  fwrite(out, file = "dab_hiseq2_genotypes.txt")
+  fwrite(out, file = raw.final.txt)
   message("Done processing chunk #5.")
 }
