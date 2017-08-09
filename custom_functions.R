@@ -1,7 +1,15 @@
 #' For each library will create 8 plates per page. Each plate has 8x12 positions with corresponding sample 
-#' name and read count.
-
-showSumsByLibrary <- function(mc) {
+#' name and read count of all sequences.
+#' Use parameter `loc` to output result to a specific folder. Do not forget a trailing slash. Defaults to `getwd()`.
+#' 
+#' Parameter pos will direct how plates are position in the output. `by_plate` it will preserve the order where
+#' plates are 1-4 in the first column and 5-8 in the second column. `by_sample` will organize plates to have
+#' plates with same replication together.
+#' 
+showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) {
+  require(ggplot2)
+  require(tidyr)
+  require(gridExtra)
   # change function sum to mean, if you're interested in mean
   mcp <- mc[, .(mean.count = sum(Read_Count, na.rm = TRUE)), by = .(Sample_Name, Run_Name, Plate, Position)]
   
@@ -39,8 +47,11 @@ showSumsByLibrary <- function(mc) {
       
     }, simplify = FALSE)
     
+    # decide if plates will be ordered to check plate performance or sample performance
+    if (pos == "by_sample") out <- out[c(1, 7, 3, 5, 2, 8, 4, 6)]
+    
     # plot to file
-    pdf(file = sprintf("platecount_%s.pdf", unique(x$Run_Name)), width = 20, height = 20)
+    pdf(file = sprintf("%splatecount_%s.pdf", loc, unique(x$Run_Name)), width = 20, height = 20)
     do.call(grid.arrange, c(grobs = out, nrow = 4, as.table = FALSE))
     dev.off()
   }, simplify = FALSE)
