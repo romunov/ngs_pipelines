@@ -17,6 +17,8 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
   
   out <- sapply(split(mcp, f = list(mcp$Run_Name)), FUN = function(x) {
     out <- sapply(split(x, f = x$Plate), FUN = function(y) {
+      # create a vector and add data for correct positions
+      # this is necessary to preserve missing positions
       y$xpos <- as.numeric(y$Position)
       xout <- rep(NA, 96)
       lbs <- xout # vector used to fill in labels
@@ -56,7 +58,12 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
       stopifnot(length(pos) == length(out))
       out <- out[pos]
     }
-    # plot to file
+    
+    # plot to file, loc should have a trailing slash included
+    if (!grepl(".*/$", pos)) {
+      stop("Trailing slash in `pos` not found. Please check your path.")
+    }
+    
     pdf(file = sprintf("%splatecount_%s.pdf", loc, unique(x$Run_Name)), width = 20, height = 20)
     do.call(grid.arrange, c(grobs = out, nrow = 4, as.table = FALSE))
     dev.off()
