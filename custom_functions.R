@@ -10,7 +10,7 @@
 #' 
 showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) {
   require(ggplot2)
-  require(tidyr)
+  require(reshape2)
   require(gridExtra)
   # change function sum to mean, if you're interested in mean
   mcp <- mc[, .(mean.count = sum(Read_Count, na.rm = TRUE)), by = .(Sample_Name, Run_Name, Plate, Position)]
@@ -22,10 +22,20 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
       y$xpos <- as.numeric(y$Position)
       xout <- rep(NA, 96)
       lbs <- xout # vector used to fill in labels
+      nms <- xout # vector used to fill in names
       
       xout[y$xpos] <- y[, mean.count]
       lbs[y$xpos] <- sprintf("%s\n%s", y[, Sample_Name], round(y[, mean.count], 0))
       lbs <- matrix(lbs, nrow = 8)
+      
+      nms[y$xpos] <- y[, Sample_Name]
+      nms <- matrix(nms, nrow = 8)
+      colnames(nms) <- 1:12
+      rownames(nms) <- LETTERS[1:8]
+      nms <- reshape2::melt(nms)
+      nms$isnegcont <- NA
+      sn <- y[grepl("(^AC\\..*$|^AK\\..*$|NeKo.*$)", Sample_Name), Sample_Name]
+      nms[nms$value %in% sn, "isnegcont"] <- TRUE
       
       out <- matrix(xout, nrow = 8)
       colnames(out) <- 1:12
@@ -40,14 +50,21 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
       lbs$Var2 <- as.factor(lbs$Var2)
       lbs$Var1 <- factor(lbs$Var1, levels = rev(levels(lbs$Var1)), ordered = TRUE)
       
+      out <- Reduce(function(x, y) merge(x, y, by = c("Var1", "Var2")), list(out, nms, lbs))
+      
+      nk <- sapply(na.omit(out[out$isnegcont == TRUE, c("Var1", "Var2")]), as.numeric, simplify = FALSE)
+      nk <- as.data.frame(nk)
+      
       ggplot(out, aes(x = Var2, y = Var1)) +
         theme_bw() +
         scale_x_discrete(position = "top") +
         theme(axis.ticks = element_blank(), legend.position = "none") +
         xlab("") + ylab("") +
         ggtitle(unique(y$Plate)) +
-        geom_tile(aes(fill = value)) +
-        geom_text(data = lbs, aes(x = Var2, y = Var1, label = lbl), color = "white")
+        geom_tile(aes(fill = value.x)) +
+        geom_rect(data = nk, aes(xmin = Var2 - 0.5, xmax = Var2 + 0.5, ymin = Var1 - 0.5, ymax = Var1 + 0.5), 
+                  fill = NA, color = "red", size = 1) +
+        geom_text(aes(label = lbl), size = 3.5, color = "white")
       
     }, simplify = FALSE)
     
@@ -60,7 +77,7 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
     }
     
     # plot to file, loc should have a trailing slash included
-    if (!grepl(".*/$", pos)) {
+    if (!grepl(".*/$", loc)) {
       stop("Trailing slash in `pos` not found. Please check your path.")
     }
     
