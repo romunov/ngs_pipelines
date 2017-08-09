@@ -4,7 +4,9 @@
 #' 
 #' Parameter pos will direct how plates are position in the output. `by_plate` it will preserve the order where
 #' plates are 1-4 in the first column and 5-8 in the second column. `by_sample` will organize plates to have
-#' plates with same replication together.
+#' plates with same replication together. `pos` can also be a numeric integer vector of the same length as there
+#' are number of plates. This will designated in which order the plates are to be plotted. Keep in mind that 
+#' the plotting order is column-wise.
 #' 
 showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) {
   require(ggplot2)
@@ -49,7 +51,11 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
     
     # decide if plates will be ordered to check plate performance or sample performance
     if (pos == "by_sample") out <- out[c(1, 7, 3, 5, 2, 8, 4, 6)]
-    
+    if (is.numeric(pos)) {
+      # stop if pos has insufficient number of positions specified
+      stopifnot(length(pos) == length(out))
+      out <- out[pos]
+    }
     # plot to file
     pdf(file = sprintf("%splatecount_%s.pdf", loc, unique(x$Run_Name)), width = 20, height = 20)
     do.call(grid.arrange, c(grobs = out, nrow = 4, as.table = FALSE))
