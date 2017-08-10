@@ -1,0 +1,122 @@
+---
+title: "Exploring NGS data - preliminary!"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup_chunk}
+library(data.table)
+source("../custom_functions.R")
+```
+
+Data comes from a pipeline as described in the supplemental material from de Barba et al. (2016). It is from two HISEQ Illumina runs so it comes in two text files. The data is stored in `/DAB/data/` under `dab_hiseq1_genotypes.txt` and `dab_hiseq2_genotypes.txt`.
+
+```{r}
+xy1 <- fread("./data/dab_hiseq1_genotypes.txt", stringsAsFactors = FALSE,
+             colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                               numeric = c(2, 3, 6)))
+xy2 <- fread("./data/dab_hiseq2_genotypes.txt", stringsAsFactors = FALSE,
+             colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                               numeric = c(2, 3, 6)))
+```
+
+
+Number of unique samples in HISEQ1 is `r length(unique(xy1$Sample_Name))` and `r length(unique(xy2$Sample_Name))` in HISEQ2.
+
+## Success of PCR
+Has PCR succeeded. The data represents the number of sequences per plate. Plates are grouped together so that these plates represent four repeats of the same sample.
+
+### HISEQ1
+Plates 3, 4, 5, 6.
+```{r}
+sapply(sort(unique(xy1$Run_Name)), FUN = function(i, x){
+  table(x[Run_Name == i & Plate %in% c(3, 4, 5, 6), ][order(Sample_Name, Marker, Plate, length)][, Plate])
+}, x = xy1)
+```
+Something has gone awry.
+
+And plates 1, 2, 7 and 8.
+```{r}
+sapply(sort(unique(xy1$Run_Name)), FUN = function(i, x){
+  table(x[Run_Name == i & Plate %in% c(1, 2, 7, 8), ][order(Sample_Name, Marker, Plate, length)][, Plate])
+}, x = xy1)
+```
+
+### HISEQ2
+Plates 3, 4, 5, 6.
+```{r}
+sapply(sort(unique(xy2$Run_Name)), FUN = function(i, x){
+  table(x[Run_Name == i & Plate %in% c(3, 4, 5, 6), ][order(Sample_Name, Marker, Plate, length)][, Plate])
+}, x = xy2)
+```
+
+Plates 1, 2, 7, 8.
+```{r}
+
+sapply(sort(unique(xy2$Run_Name)), FUN = function(i, x){
+  table(x[Run_Name == i & Plate %in% c(1, 2, 7, 8), ][order(Sample_Name, Marker, Plate, length)][, Plate])
+}, x = xy2)
+```
+
+## Negative controls
+Negative control samples are marked `AK` for tissue samples and `AC` for non-invasive samples. In HISEQ1, they are marked as `NeKo*`.
+
+### HISEQ1
+```{r}
+xy1[grepl("(^AC\\..*$|^AK\\..*$)", Sample_Name), ][order(Sequence, Run_Name, Sample_Name, Plate, Marker)]
+```
+
+### HISEQ2
+```{r}
+xy2[grepl("(^AC\\..*$|^AK\\..*$|NeKo.*$)", Sample_Name), ][order(Sequence, Run_Name, Sample_Name, Plate, Marker)]
+```
+
+
+## Find blanks
+
+### HISEQ1
+```{r}
+xy1[grepl("blank", Sample_Name), ]
+```
+
+### HISEQ2
+```{r}
+xy2[grepl("blank", Sample_Name), ]
+```
+
+## Number of reads per position
+These figures should give you a broad idea of how many reads each position got. This may indicate weak samples. Also notice if there are reads in positions designated as blanks.
+
+### HISEQ1
+Results should be in `"./data/countplate"`
+```{r eval = FALSE}
+showSumsByLibrary(xy1, loc = "./data/countplate/", pos = "by_sample")
+```
+
+### HISEQ2
+```{r eval = FALSE}
+showSumsByLibrary(xy2, loc = "./data/countplate/", pos = "by_sample")
+```
+
+## Sequence frequency
+
+For each locus, find sequences by frequency for two HISEQ runs.
+### HISEQ1
+```{r}
+freq.of.seq.by.marker <- xy1[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
+fwrite(freq.of.seq.by.marker, file = "./data/frequency_of_sequences_by_marker_hiseq1.txt", sep = "\t")
+freq.of.seq.by.marker
+```
+
+### HISEQ2
+```{r}
+freq.of.seq.by.marker <- xy2[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
+fwrite(freq.of.seq.by.marker, file = "./data/frequency_of_sequences_by_marker_hiseq2.txt", sep = "\t")
+freq.of.seq.by.marker
+```
+
