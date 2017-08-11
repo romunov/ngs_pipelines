@@ -14,7 +14,7 @@ library(data.table)
 source("../custom_functions.R")
 ```
 
-Data comes from a pipeline as described in the supplemental material from de Barba et al. (2016). It is from two HISEQ Illumina runs so it comes in two text files. The data is stored in `/DAB/data/` under `dab_hiseq1_genotypes.txt` and `dab_hiseq2_genotypes.txt`.
+Data comes from a pipeline as described in the supplemental material from de Barba et al. (2016). It is from two HISEQ Illumina runs so it comes in two text files. The data is stored in `/DAB/data/` under `dab_hiseq1_genotypes.txt` and `dab_hiseq2_genotypes.txt`. A total of 2x 12 libraries have been analyzed.
 
 ```{r}
 xy1 <- fread("./data/dab_hiseq1_genotypes.txt", stringsAsFactors = FALSE,
@@ -38,7 +38,6 @@ sapply(sort(unique(xy1$Run_Name)), FUN = function(i, x){
   table(x[Run_Name == i & Plate %in% c(3, 4, 5, 6), ][order(Sample_Name, Marker, Plate, length)][, Plate])
 }, x = xy1)
 ```
-Something has gone awry.
 
 And plates 1, 2, 7 and 8.
 ```{r}
@@ -54,21 +53,21 @@ sapply(sort(unique(xy2$Run_Name)), FUN = function(i, x){
   table(x[Run_Name == i & Plate %in% c(3, 4, 5, 6), ][order(Sample_Name, Marker, Plate, length)][, Plate])
 }, x = xy2)
 ```
+Something has gone awry.
 
 Plates 1, 2, 7, 8.
 ```{r}
-
 sapply(sort(unique(xy2$Run_Name)), FUN = function(i, x){
   table(x[Run_Name == i & Plate %in% c(1, 2, 7, 8), ][order(Sample_Name, Marker, Plate, length)][, Plate])
 }, x = xy2)
 ```
 
 ## Negative controls
-Negative control samples are marked `AK` for tissue samples and `AC` for non-invasive samples. In HISEQ1, they are marked as `NeKo*`.
+Negative control samples are marked `AK` for tissue samples and `AC` for non-invasive samples. Some have designation `NeKo*`.
 
 ### HISEQ1
 ```{r}
-xy1[grepl("(^AC\\..*$|^AK\\..*$)", Sample_Name), ][order(Sequence, Run_Name, Sample_Name, Plate, Marker)]
+xy1[grepl("(^AC\\..*$|^AK\\..*$|NeKo.*$)", Sample_Name), ][order(Sequence, Run_Name, Sample_Name, Plate, Marker)]
 ```
 
 ### HISEQ2
@@ -78,6 +77,8 @@ xy2[grepl("(^AC\\..*$|^AK\\..*$|NeKo.*$)", Sample_Name), ][order(Sequence, Run_N
 
 
 ## Find blanks
+
+List all samples which have a word `"blank"` in them.
 
 ### HISEQ1
 ```{r}
@@ -101,11 +102,13 @@ showSumsByLibrary(xy1, loc = "./data/countplate/", pos = "by_sample")
 ### HISEQ2
 ```{r eval = FALSE}
 showSumsByLibrary(xy2, loc = "./data/countplate/", pos = "by_sample")
+list.files("./data/countplate", pattern = "pdf")
 ```
 
 ## Sequence frequency
 
 For each locus, find sequences by frequency for two HISEQ runs.
+
 ### HISEQ1
 ```{r}
 freq.of.seq.by.marker <- xy1[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
