@@ -422,7 +422,7 @@ if (do.chunk5) {
   mt <- fread(parscsv, dec = ",",
               colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
               stringsAsFactors = FALSE, header = TRUE)
-  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt, verbose = TRUE), 
+  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt), 
                         by = .(Sample_Name, Marker, Plate)])
   
   # message(sprintf("(%s) Chunk5: Splitting genotypes by sample name, marker and plate.", Sys.time()))
@@ -435,7 +435,7 @@ if (do.chunk5) {
   save(out, file = raw.final)
   
   # these runs had no candidate alleles
-  out <- out[!is.na(Read_Count), ]
+  # out <- out[!is.na(Read_Count), ]
   out <- out[, 4:ncol(out)] # data.table adds variables used to "by" - here we remove them
   # no.alleles <- sapply(out, class)
   # out <- out[no.alleles != "character"]
