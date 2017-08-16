@@ -19,11 +19,19 @@ if (do.chunk1) do.chunk.init <- TRUE
 if (do.chunk2) do.chunk.init <- TRUE
 if (do.chunk5) do.chunk.init <- TRUE
 
+parscsv <- "./DAB/pars.csv"
+
 # output files
-raw.rdata <- "raw_genotypes_dab_hiseq2.RData"
-raw.cleaned.rdata <- "genotypes_dab_hiseq2_cleaned.RData"
-raw.final <- "final_hiseq2.RData"
-raw.final.txt <- "dab_hiseq2_genotypes.txt"
+raw.rdata <- "./DAB/data/raw_genotypes_dab_hiseq1.RData"
+raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq1_cleaned.RData"
+raw.final <- "./DAB/data/final_hiseq1.RData"
+raw.final.txt <- "./DAB/data/dab_hiseq1_genotypes.txt"
+
+# raw.rdata <- "raw_genotypes_dab_hiseq2.RData"
+# raw.cleaned.rdata <- "genotypes_dab_hiseq2_cleaned.RData"
+# raw.final <- "final_hiseq2.RData"
+# raw.final.txt <- "dab_hiseq2_genotypes.txt"
+
 
 # parallel stuff
 if (do.chunk.init) {
@@ -411,7 +419,7 @@ if (do.chunk5) {
   
   if (!exists("gt")) load(raw.cleaned.rdata)
       
-  mt <- fread("pars.csv", dec = ",",
+  mt <- fread(parscsv, dec = ",",
               colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
               stringsAsFactors = FALSE, header = TRUE)
   
