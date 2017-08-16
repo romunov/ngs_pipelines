@@ -27,10 +27,10 @@ raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq1_cleaned.RData"
 raw.final <- "./DAB/data/final_hiseq1.RData"
 raw.final.txt <- "./DAB/data/dab_hiseq1_genotypes.txt"
 
-# raw.rdata <- "raw_genotypes_dab_hiseq2.RData"
-# raw.cleaned.rdata <- "genotypes_dab_hiseq2_cleaned.RData"
-# raw.final <- "final_hiseq2.RData"
-# raw.final.txt <- "dab_hiseq2_genotypes.txt"
+# raw.rdata <- "./DAB/data/raw_genotypes_dab_hiseq2.RData"
+# raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq2_cleaned.RData"
+# raw.final <- "./DAB/data/final_hiseq2.RData"
+# raw.final.txt <- "./DAB/data/dab_hiseq2_genotypes.txt"
 
 
 # parallel stuff
@@ -412,35 +412,39 @@ if (do.chunk5) {
 
   # Clean genotypes and calling alleles ####
   #####
-  require(data.table)
+  library(data.table)
   library(fishbone)
   
   clusterEvalQ(cl = cl, expr = library(fishbone))
   
   if (!exists("gt")) load(raw.cleaned.rdata)
-      
+
   mt <- fread(parscsv, dec = ",",
               colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
               stringsAsFactors = FALSE, header = TRUE)
+  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt, verbose = TRUE), 
+                        by = .(Sample_Name, Marker, Plate)])
   
-  message(sprintf("(%s) Chunk5: Splitting genotypes by sample name, marker and plate.", Sys.time()))
-  gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
-  
-  message(sprintf("(%s) Chunk5: Calling alleles, this may take a while.", Sys.time()))
-  out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE)
-  
-  message(sprintf("(%s) Chunk5: Saving final RData file", Sys.time()))
+  # message(sprintf("(%s) Chunk5: Splitting genotypes by sample name, marker and plate.", Sys.time()))
+  # gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
+  # 
+  # message(sprintf("(%s) Chunk5: Calling alleles, this may take a while.", Sys.time()))
+  # out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE)
+  # 
+  # message(sprintf("(%s) Chunk5: Saving final RData file", Sys.time()))
   save(out, file = raw.final)
   
   # these runs had no candidate alleles
-  no.alleles <- sapply(out, class)
-  out <- out[no.alleles != "character"]
-  no.alleles <- sapply(out, nrow)
-  no.alleles <- unlist(no.alleles)
-  out <- out[no.alleles > 0]
-  out <- rbindlist(out)
+  out <- out[!is.na(Read_Count), ]
+  out <- out[, 4:ncol(out)] # data.table adds variables used to "by" - here we remove them
+  # no.alleles <- sapply(out, class)
+  # out <- out[no.alleles != "character"]
+  # no.alleles <- sapply(out, nrow)
+  # no.alleles <- unlist(no.alleles)
+  # out <- out[no.alleles > 0]
+  # out <- rbindlist(out)
   
   message("Chunk5: Writing final genotypes.")
-  fwrite(out, file = raw.final.txt)
+  fwrite(out, file = raw.final.txt, sep = "\t")
   message("Done processing chunk #5.")
 }
