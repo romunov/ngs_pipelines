@@ -96,13 +96,12 @@ These figures should give you a broad idea of how many reads each position got. 
 ### HISEQ1
 Results should be in `"./data/countplate"`
 ```{r eval = FALSE}
-showSumsByLibrary(xy1, loc = "./data/countplate/", pos = "by_sample")
+showSumsByLibrary(xy1, loc = "./data/", pos = "by_sample")
 ```
 
 ### HISEQ2
 ```{r eval = FALSE}
-showSumsByLibrary(xy2, loc = "./data/countplate/", pos = "by_sample")
-list.files("./data/countplate", pattern = "pdf")
+showSumsByLibrary(xy2, loc = "./data/", pos = "by_sample")
 ```
 
 ## Sequence frequency
