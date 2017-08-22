@@ -122,9 +122,15 @@ fwrite(freq.of.seq.by.marker, file = "./data/frequency_of_sequences_by_marker_hi
 freq.of.seq.by.marker
 ```
 
+## Distribution of flags
+
+### HISEQ1
 ```{r}
-mtx <- unique(xy1[grepl("M", xy1$flag), .(Sample_Name, Plate, Marker)])
-setkey(mtx, Sample_Name, Plate, Marker)
-setkey(xy1, Sample_Name, Plate, Marker)
-xy1[mtx]
+table(xy1$flag)
 ```
+
+### HISEQ2
+```{r}
+table(xy2$flag)
+```
+
