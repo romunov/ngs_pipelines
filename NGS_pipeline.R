@@ -412,10 +412,10 @@ if (do.chunk5) {
 
   # Clean genotypes and calling alleles ####
   #####
-  library(data.table)
+  # library(data.table)
   library(fishbone)
   
-  clusterEvalQ(cl = cl, expr = library(fishbone))
+  # clusterEvalQ(cl = cl, expr = library(fishbone))
   
   if (!exists("gt")) load(raw.cleaned.rdata)
 
