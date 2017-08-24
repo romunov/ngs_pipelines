@@ -11,6 +11,9 @@ editor_options:
 
 ```{r setup_chunk}
 library(data.table)
+library(ggplot2)
+library(gridExtra)
+
 source("../custom_functions.R")
 ```
 
@@ -132,5 +135,42 @@ table(xy1$flag)
 ### HISEQ2
 ```{r}
 table(xy2$flag)
+```
+
+## Alleles and stutters
+See the distribution of number of reads of alleles and stutters, drawn by marker.
+### Alleles
+```{r fig.width = 8, fig.height = 12}
+pxy1 <- ggplot(xy1[called == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count HISEQ1") +
+  scale_x_continuous(limits = c(0, quantile(xy1$Read_Count[xy1$called == TRUE], 0.99))) +
+  facet_wrap(~ Marker, ncol = 2)
+pxy2 <- ggplot(xy2[called == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count HISEQ2") +
+  scale_x_continuous(limits = c(0, quantile(xy2$Read_Count[xy2$called == TRUE], 0.99))) +
+  facet_wrap(~ Marker, ncol = 2)
+grid.arrange(pxy1, pxy2, ncol = 2)
+```
+### Stutters
+```{r fig.width = 8, fig.height = 12}
+pxy1 <- ggplot(xy1[stutter == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count HISEQ1") +
+  scale_x_continuous(limits = c(0, quantile(xy1$Read_Count[xy1$stutter == TRUE], 0.99)),
+                     breaks = c(0, 500, 1000)) +
+  scale_y_continuous(breaks = c(0, 6000)) +
+  facet_wrap(~ Marker, ncol = 2)
+pxy2 <- ggplot(xy2[stutter == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count HISEQ2") +
+  scale_x_continuous(limits = c(0, quantile(xy2$Read_Count[xy2$stutter == TRUE], 0.99)),
+                     breaks = c(0, 500, 1000)) +
+  scale_y_continuous(breaks = c(0, 6000)) +
+  facet_wrap(~ Marker, ncol = 2)
+grid.arrange(pxy1, pxy2, ncol = 2)
+```
+```{r}
 ```
 
