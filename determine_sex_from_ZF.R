@@ -3,6 +3,7 @@
 # Input is the folder where _ZF.uniq.tab files (as produced by the last command in the pipeline - obitab).
 
 library(data.table)
+source("custom_functions.R")
 
 #### INPUT ####
 # Point this line to the folder where .uniqe.tab files of ZF are located.
@@ -21,8 +22,11 @@ file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq1_sex.txt"
 # file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq2.txt"
 # file.called <- "./DAB/data/dab_called_genetic_sex_hiseq2.txt"
 # file.freqs <- "./data/frequency_of_sequences_by_marker_hiseq2_sex.txt"
-countTS <- 10 # reads that do not match exact sequence should have this number of reads,
+countTS <- 20 # reads that do not match exact sequence should have this number of reads,
               # otherwise they are discarded
+lowCount <- 100 # if unrecognized as sex sequence and below this threshold, flag as "L"
+junkTS <- 0.15 # when scanning for junk, if a sequence is less than this of max sequence, discard
+dbTS <- 0.5 # if sequence is below dbTS relative to max sequence, flag as disbalanced
 #### INPUT ####
 
 # Exact sequences from X and Y chromosomes
@@ -73,15 +77,16 @@ system.time(xy <- sapply(xy.file, FUN = function(fl) {
 # Combine the result into one data.table and exclude zero counts.
 xy <- rbindlist(xy)
 xy <- xy[Read_Count > 0, ]
+xy <- xy[length >= 100, ] # retain only sequences longer or equal to 100
 
 # Sequences of X and Y, sent in by Stéphane Lobreaux (Université Grenoble Alpes). Use them to replace with
 # human readable format.
 uaxy <- c(seqUAX, seqUAY)
 
-# Extract only 100% sequences or with sufficient count.
-sexy <- xy[Sequence %in% uaxy | Read_Count > countTS, ]
+# Extract only sequences with sufficient count.
+sexy <- xy[Read_Count > countTS, ]
 
-# add TagCombo
+#### add TagCombo ####
 tc <- sapply(ngs.files, FUN = read.table, simplify = FALSE)
 tc <- rbindlist(tc)
 rownames(tc) <- NULL
@@ -95,88 +100,23 @@ sexy[, fl := sprintf(sprintf("UA_MxRout1_%s", Marker))]
 sexy <- merge(sexy, tc, by.x = c("fn", "fl"), by.y = c("V2", "V1"))
 sexy[, fn := NULL]
 sexy[, fl := NULL]
+#####
+# keep only sequences with +-5 of length of X
+sexy <- sexy[length < nchar(seqUAX) + 5 & length > nchar(seqUAX) - 5, ]
 
-# TODO:pustim length != 104 notr? tiste k so ekstremno kratki?
-# TODO: večina bo imela flag D - a to res hočmo?
-sexy[Sample_Name %in% sample(sexy$Sample_Name, 1), -"Sequence"]
+# if sequence is not known to be from UAX or UAY, mark as low if below
+# a given threshold
+sexy[!(Sequence %in% uaxy) & Read_Count <  lowCount, flag := paste(flag, "L", sep = "")]
 
-freq.of.seq.by.marker <- sexy[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
+# clean based on function cleanZF
+sps <- split(sexy, f = list(sexy$Sample_Name, sexy$Plate))
+system.time(spsclean <- sapply(sps, FUN = cleanZF, ts = junkTS, db = dbTS, simplify = FALSE))
+spsclean <- rbindlist(spsclean)
+spsclean[Sample_Name %in% sample(spsclean$Sample_Name, 1), -c("Sequence", "TagCombo")]
+fwrite(spsclean[order(Sample_Name, Plate, Read_Count)], file = file.called, sep = "\t")
+
+freq.of.seq.by.marker <- spsclean[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
 fwrite(freq.of.seq.by.marker, file = file.freqs, sep = "\t")
-freq.of.seq.by.marker
 
-
-# ####### od tu dalje nespremenjeno ##############
-# 
-# # Add human readable designations for X and Y.
-# sexy[, seq := ""]
-# sexy[Sequence %in% seqUAX, seq := "X"]
-# sexy[Sequence %in% seqUAY, seq := "Y"]
-# 
-# # write intermediate (raw) result
-# fwrite(sexy, file = file.out.seq)
-# 
-# # Raw sequence is of no importance (from here on), so we remove it. It can always be
-# # reconstructed from X and Y
-# sexy[, Sequence := NULL]
-# 
-# # If you are skipping the above steps, you can always read in file.out.seq and go from here.
-# # sexy <- fread(file.out.seq)
-# 
-# # Find samples with more than two alleles which may be causing problems. Uncommend fwrite line to
-# # output this to a readable file. Some samples may be salveageable, but only manually.
-# tm <- sexy[Sample_Name %in% sexy[, .N, by = .(Sample_Name, Plate, Run_Name)][N > 2, Sample_Name], ]
-# tm <- tm[order(Sample_Name, Plate, Run_Name), ]
-# # fwrite(tm, file = "./DAB/data/samples_with_more_than_two_alleles.txt", sep = "\t")
-# 
-# # Exclude samples with potential flaws - handle them manually if critical.
-# sexy <- sexy[!(Sample_Name %in% unique(tm$Sample_Name)), ]
-# 
-# # Recast the data so that X, Y and count go from long to wide format.
-# # before:        after:
-# # seq count         
-# #   X   513       X  Y
-# #   Y     1     513  1
-# # It is fairly easy to read genotypes in this format.
-# sexy <- dcast(sexy, Plate + Sample_Name + length + Position + Run_Name ~ seq, 
-#       value.var = c("count"))
-# 
-# # Since some may not have Y (or X), we turn NAs to 0. This and ordering may somewhat
-# # improve readability.
-# sexy <- sexy[order(Run_Name, Sample_Name, Plate)]
-# sexy[, X := ifelse(is.na(X), 0, X)]
-# sexy[, Y := ifelse(is.na(Y), 0, Y)]
-# 
-# # It would appear males have either balanced X and Y or skewed number of reads for
-# # Y. Females have very skewed number of reads toward X. We use this piece of
-# # information to call genetic sex. Using coefficient of variation we judge whether
-# # X or Y is significantly higher than the other (dispersed far from the mean). If 
-# # not, it indicates balanced X and Y and not otherwise.
-# 
-# # Calculate coefficient of variation - this will tell us if the difference
-# # between X and Y is "large" or not. If you plot cv, you will notice that it 
-# # clusters around zero and above 1. This can be used to define a cut-off.
-# sexy[, mean := apply(sexy[, .(X, Y)], 1, mean)]
-# sexy[, cv := apply(sexy[, .(X, Y)], 1, sd) / mean]
-# 
-# # Small values indicate small differences between X and Y --> calling it male.
-# cutoff.cv <- 0.75
-# # Define a threshold below which absolute number of reads is considered as 
-# # untrustworthy and thus forloring genetic sex calling.
-# cutoff.abs <- 5
-# 
-# # Deem male:
-# # If coefficient of variation is very small, this indicates X and Y are balanced.
-# sexy[cv < cutoff.cv, sex := "M"] # this also takes care of cases where X == Y
-# # If Y is amplified more than X, deem this male.
-# sexy[Y > mean & X < mean & cv > cutoff.cv, sex := "M"]
-# # Deem female:
-# # If X is significantly higher than Y, deem this female.
-# sexy[X > mean & Y < mean & cv > cutoff.cv, sex := "F"]
-# # ID of samples with really weak, reads are deemed unreliable.
-# sexy[X < cutoff.abs & Y < cutoff.abs, sex := NA]
-# 
-# # This just rounds CV to improve readability.
-# sexy[, cv := round(cv, 2)]
-# # Order before finally writing the result to disk.
-# sexy <- sexy[, .(Sample_Name, Plate, Position, Run_Name, mean, cv, X, Y, sex)]
-# fwrite(sexy, file = file.called, sep = "\t")
+# number of flagged samples:
+spsclean[, .(numsamples = length(unique(Sample_Name))), by = .(flag)]

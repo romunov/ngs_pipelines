@@ -87,3 +87,22 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
   }, simplify = FALSE)
   return(invisible(out))
 }
+
+#' Clean ZF alleles.
+#' @param fb Data as organized from the ngs pipeline.
+#' @param ts Threshold value under which sequences are discarded relative to the sequence
+#' with the highest number of reads in one sample * plate combination.
+
+cleanZF <- function(fb, ts, db) {
+  # browser()
+  if (nrow(fb) == 0) return(NULL)
+  # omit all sequences that do not reach ts% of the highest read.  
+  lvls <- fb$Read_Count/max(fb$Read_Count)
+  fb <- fb[lvls > ts, ]
+ 
+  # if an allele is significantly below a db threshold, flag it as disbalanced
+  lvls <- fb$Read_Count/max(fb$Read_Count)
+  fb[lvls < db, ]$flag <- paste(fb[lvls < db, ]$flag, "D", sep = "")
+  # fb[lvls < db, flag := paste(flag, "D", sep = "")]
+  fb
+}
