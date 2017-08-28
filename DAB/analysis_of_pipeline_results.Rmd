@@ -181,23 +181,8 @@ grid.arrange(pxy1, pxy2, ncol = 2)
 
 To calculate quality index, number of replications is essential.
 ```{r}
-out <- sapply(list(ngs1, ngs2), FUN = function(ngs) {
-  it <- sapply(ngs, FUN = function(x) {
-    ri <- fread(x, header = FALSE)
-    lb <- gsub("\\.ngsfilter", "", basename(x))
-    
-    namerun <- data.table(samplename = gsub("^(.*)(_\\d+_)(PP\\d+)$", "\\1", ri[, V2]),
-                          runname = gsub("^(.*)(_\\d+_)(PP\\d+)$", "\\3", ri[, V2]),
-                          ident = ri[, V3])
-    
-    namerun <- namerun[!duplicated(ident), ]
-    
-    namerun[, .(.N, Run_Name = lb), by = .(samplename)]
-  }, simplify = FALSE)
-  it <- rbindlist(it)
-}, simplify = FALSE)
 
-fwrite(out[[1]], file = "./data/dab_number_of_repeats_hiseq1.txt", sep = "\t")
-fwrite(out[[2]], file = "./data/dab_number_of_repeats_hiseq2.txt", sep = "\t")
+fwrite(countSampleLocusRepeats(ngs = ngs1), file = "./data/dab_number_of_repeats_hiseq1.txt", sep = "\t")
+fwrite(countSampleLocusRepeats(ngs = ngs2), file = "./data/dab_number_of_repeats_hiseq2.txt", sep = "\t")
 ```
 
