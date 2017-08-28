@@ -106,3 +106,22 @@ cleanZF <- function(fb, ts, db) {
   # fb[lvls < db, flag := paste(flag, "D", sep = "")]
   fb
 }
+
+#' Count number of repeats for samples * locus combinations.
+countSampleLocusRepeats <- function(ngs) {
+  it <- sapply(ngs, FUN = function(x) {
+    ri <- fread(x, header = FALSE)
+    lb <- gsub("\\.ngsfilter", "", basename(x))
+    
+    namerun <- data.table(Sample_Name = gsub("^(.*)(_\\d+_)(PP\\d+)$", "\\1", ri[, V2]),
+                          Marker = gsub("^.*_([[:alnum:]]+)$", "\\1", ri[, V1]),
+                          runname = gsub("^(.*)(_\\d+_)(PP\\d+)$", "\\3", ri[, V2]),
+                          ident = ri[, V3])
+    head(namerun)
+    
+    # namerun <- namerun[!duplicated(ident), ]
+    
+    namerun[, .(Run_Name = lb, .N), by = .(Sample_Name, Marker)]
+  }, simplify = FALSE)
+  it <- rbindlist(it)
+}
