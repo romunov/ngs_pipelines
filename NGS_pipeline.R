@@ -104,6 +104,8 @@ if (do.chunk1) {
   print(data.frame(ngsfilter = names(sn), input = names(inputfile)))
   
   # extract sample names
+  # TODO: sample names should be tied to tag combo or position if we want to prevent pooling
+  # of repeats between plates of a given run
   samplenames <- sapply(sn, FUN = function(x) as.character(x$V2), simplify = FALSE)
   samplenames <- sapply(samplenames, FUN = function(x) {
     unique(gsub("^(.*)_[[:alnum:]]{3}_PP\\d+$", "\\1", x))
@@ -254,6 +256,7 @@ if (do.chunk3) {
   library(data.table)
   
   # fetch all series files and append some columns to aid in debugging and viewing of the data
+  # (!) notice that this step does not account for locus ZF
   xy <- data.frame(files = list.files(dir.lsl, pattern = "serie.tab$", full.names = TRUE),
                    stringsAsFactors = FALSE)
   xy$lib <- gsub("^MICROSAT\\.PCR_(DAB\\d+)_.*$", "\\1", basename(xy$files))
@@ -308,7 +311,7 @@ if (do.chunk3) {
     io <- gather(io, key = run, value = count_run, 
                  c(-sequence, -seq_length, -series))
     
-    # Add sample names, locus, allele and run number.
+    # Add library, sample names, locus, position, allele and run number.
     # Explanation of regex:
     # string should begin with "sample.", then find a *group*, then find _,
     # then find digits, followed by _, then by P, followed by more digits
