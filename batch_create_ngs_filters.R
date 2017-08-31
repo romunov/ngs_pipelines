@@ -19,7 +19,7 @@ primers <- as.data.frame(read_excel("./DAB/aliquot_plates/input_primers_tags.xls
 # PP has columns position, slo, PP1, PP2, ... PP8 which designates which position (1-96) holds which forward
 # and reverse tag combination.
 PP <- as.data.frame(read_excel("./DAB/aliquot_plates/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx", 
-                               sheet = "Tag crossbreeding", skip = 42))
+                               sheet = "Tag crossbreeding", skip = 43))
 
 # AP will hold links to files to aliquot plates. Data is arranged in columns. Each row holds its own
 # sample (name) which will be used to construct .ngsfilter.

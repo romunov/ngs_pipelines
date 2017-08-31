@@ -186,3 +186,15 @@ fwrite(countSampleLocusRepeats(ngs = ngs1), file = "./data/dab_number_of_repeats
 fwrite(countSampleLocusRepeats(ngs = ngs2), file = "./data/dab_number_of_repeats_hiseq2.txt", sep = "\t")
 ```
 
+## Create a list of samples
+Map samples to their position in library. This will help us know which samples worked and which did not.
+
+```{r}
+outngs1 <- sapply(ngs1, FUN = sampleMetadata, simplify = FALSE)
+outngs1 <- rbindlist(outngs1)
+outngs2 <- sapply(ngs2, FUN = sampleMetadata, simplify = FALSE)
+outngs2 <- rbindlist(outngs2)
+out <- rbindlist(list(outngs1, outngs2))
+fwrite(out, file = "./data/sample_positions_DAB01-DAB24.txt", sep = "\t")
+```
+

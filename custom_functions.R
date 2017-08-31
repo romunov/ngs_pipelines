@@ -125,3 +125,21 @@ countSampleLocusRepeats <- function(ngs) {
   }, simplify = FALSE)
   it <- rbindlist(it)
 }
+
+#' Create a list of samples and their position in a library
+#' @param x Full path to the .ngsfilter file.
+sampleMetadata <- function(x) {
+  lb <- fread(x, header = FALSE)
+  ptn <- "^(.*)_(\\d+)_PP(\\d+)$"
+  xy <- data.table(
+    Sample_Name = gsub(ptn, "\\1", lb[, V2]),
+    Plate = gsub(ptn, "\\3", lb[, V2]),
+    Read_Count = NA,
+    Marker = gsub("^.*_([[:alnum:]]{2})$", "\\1", lb[, V1]),
+    Run_Name = gsub("^(.*[[:alnum:]])\\.ngsfilter$", "\\1", basename(x)),
+    length = NA,
+    Position = gsub(ptn, "\\2", lb[, V2]),
+    TagCombo = lb[, V3]
+    )
+  xy
+}
