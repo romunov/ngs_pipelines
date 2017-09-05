@@ -181,7 +181,6 @@ grid.arrange(pxy1, pxy2, ncol = 2)
 
 To calculate quality index, number of replications is essential.
 ```{r}
-
 fwrite(countSampleLocusRepeats(ngs = ngs1), file = "./data/dab_number_of_repeats_hiseq1.txt", sep = "\t")
 fwrite(countSampleLocusRepeats(ngs = ngs2), file = "./data/dab_number_of_repeats_hiseq2.txt", sep = "\t")
 ```
