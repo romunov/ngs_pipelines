@@ -330,11 +330,19 @@ if (do.chunk3) {
     # and finally the string should end on that. Extract *group*.
     # The next two regex statements are similar, except they vary in number
     # of position of groups. \\d{1} means "find 1 digit".
-    io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
-    io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
-    io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\3", basename(x$files))
-    io$position <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\2", io$run)
-    io$run <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\3", io$run)
+    
+    # io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
+    # io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
+    # io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\3", basename(x$files))
+    # io$position <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\2", io$run)
+    # io$run <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\3", io$run)
+    # io$allele <- paste(io$seq_length, io$series, sep = "_")
+    
+    io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
+    io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
+    io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\5", basename(x$files))
+    io$position <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\2", io$run)
+    io$run <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\3", io$run)
     io$allele <- paste(io$seq_length, io$series, sep = "_")
     
     # Notice that `serie` and `seq_length` are no longer included as they are
