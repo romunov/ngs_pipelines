@@ -8,24 +8,28 @@ library(data.table)
 source("microsatTabExtract.R")
 
 do.chunk.init <- TRUE
-do.chunk1 <- TRUE # create files for each sample/locus using microsatTabExtract
-do.chunk2 <- FALSE # find series using python script
-do.chunk3 <- FALSE # prepare candidate alleles
-do.chunk4 <- FALSE # clean candidate alleles
-do.chunk5 <- FALSE # call alleles
+do.chunk1 <- FALSE # create files for each sample/locus using microsatTabExtract
+do.chunk2 <- TRUE # find series using python script
+do.chunk3 <- TRUE # prepare candidate alleles
+do.chunk4 <- TRUE # clean candidate alleles
+do.chunk5 <- TRUE # call alleles
 
 # for chunks running in parallel, always turn on init chunk to start up workers
 if (do.chunk1) do.chunk.init <- TRUE
 if (do.chunk2) do.chunk.init <- TRUE
 if (do.chunk5) do.chunk.init <- TRUE
 
-parscsv <- "./DAB/pars.csv"
-
 # output files
-raw.rdata <- "./DAB/data/raw_genotypes_dab_hiseq1.RData"
-raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq1_cleaned.RData"
-raw.final <- "./DAB/data/final_hiseq1.RData"
-raw.final.txt <- "./DAB/data/dab_hiseq1_genotypes.txt"
+# /data must exist!
+raw.rdata <- "./DAB_GATC/data/raw_genotypes_dab_gatc.RData"
+raw.cleaned.rdata <- "./DAB_GATC/data/genotypes_dab_gatc_cleaned.RData"
+raw.final <- "./DAB_GATC/data/final_dab_gatc.RData"
+raw.final.txt <- "./DAB/data/dab_gatc_genotypes.txt"
+
+# raw.rdata <- "./DAB/data/raw_genotypes_dab_hiseq1.RData"
+# raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq1_cleaned.RData"
+# raw.final <- "./DAB/data/final_hiseq1.RData"
+# raw.final.txt <- "./DAB/data/dab_hiseq1_genotypes.txt"
 
 # raw.rdata <- "./DAB/data/raw_genotypes_dab_hiseq2.RData"
 # raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq2_cleaned.RData"
@@ -48,11 +52,16 @@ if (do.chunk.init) {
 }
 
 # Store results of step 1 and 2 in this folder
-dir.ngsfilter <- "./DAB/1_ngsfilters_hiseq1"
+dir.ngsfilter <- "./DAB_GATC/1_ngsfilters"
+dir.uniq.tab <- "./DAB_GATC/2_uniq_tab"
+dir.lsl <- "./DAB_GATC/3_lib_sample_locus" # notice no trailing slash
+
+# dir.ngsfilter <- "./DAB/1_ngsfilters_hiseq1"
+# dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
+# dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
+
 # dir.ngsfilter <- "./1_ngsfilters_hiseq2"
-dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
 # dir.uniq.tab <- "./2_uniq_tab_hiseq2"
-dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
 # dir.lsl <- "./3_lib_sample_locus_hiseq2"
 
 if (!dir.exists(dir.ngsfilter)) {
@@ -94,7 +103,8 @@ if (do.chunk1) {
   sn <- sapply(sn, read.table, simplify = FALSE)
   
   inputfile <- list.files(dir.uniq.tab, pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
-  libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
+  # libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
+  libnum <- rep(1, times = length(inputfile))
   libnum <- sprintf("%02d", as.numeric(libnum))
   
   inputfile <- split(inputfile, f = libnum)
@@ -260,7 +270,9 @@ if (do.chunk3) {
   xy <- data.frame(files = list.files(dir.lsl, pattern = "serie.tab$", full.names = TRUE),
                    stringsAsFactors = FALSE)
   xy$lib <- gsub("^MICROSAT\\.PCR_(DAB\\d+)_.*$", "\\1", basename(xy$files))
-  xy$sample <- gsub("^.*_(.*)_\\d{2}_serie\\.tab$", "\\1", xy$files)
+  # xy$sample <- gsub("^.*_(.*)_\\d{2}_serie\\.tab$", "\\1", xy$files)
+  # xy$locus <- gsub("^.*_(.*)_(\\d{2})_serie\\.tab$", "\\2", xy$files)
+  xy$sample <- gsub("^.*_(.*)_\\d+_P\\d_\\d{2}_serie\\.tab$", "\\1", xy$files)
   xy$locus <- gsub("^.*_(.*)_(\\d{2})_serie\\.tab$", "\\2", xy$files)
   
   smp <- unique(xy$sample)
@@ -422,9 +434,10 @@ if (do.chunk5) {
   
   if (!exists("gt")) load(raw.cleaned.rdata)
 
-  mt <- fread(parscsv, dec = ",",
-              colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
-              stringsAsFactors = FALSE, header = TRUE)
+  # mt <- fread(parscsv, dec = ",",
+  #             colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
+  #             stringsAsFactors = FALSE, header = TRUE)
+  data(mt) # from fishbone package
   system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt), 
                         by = .(Sample_Name, Marker, Plate)])
   
