@@ -7,21 +7,21 @@ source("custom_functions.R")
 
 #### INPUT ####
 # Point this line to the folder where .uniqe.tab files of ZF are located.
-xy.file <- list.files("./DAB/zf_hiseq1/", full.names = TRUE)
-ngs.files <- list.files("./DAB/1_ngsfilters_hiseq1/", pattern = ".ngsfilter", full.names = TRUE)
-# xy.file <- list.files("./DAB/zf_hiseq2/", full.names = TRUE)
-# ngs.files <- list.files("./DAB/1_ngsfilters_hiseq2/", pattern = ".ngsfilter", full.names = TRUE)
+# xy.file <- list.files("./DAB/zf_hiseq1/", full.names = TRUE)
+# ngs.files <- list.files("./DAB/1_ngsfilters_hiseq1/", pattern = ".ngsfilter", full.names = TRUE)
+xy.file <- list.files("./DAB/zf_hiseq2/", full.names = TRUE)
+ngs.files <- list.files("./DAB/1_ngsfilters_hiseq2/", pattern = ".ngsfilter", full.names = TRUE)
 
 # Name of the file(s) into which the results are to be written. There is one more 
 # possible intermediate file towards the end.
 # Switch between HISEQ1 and HiSEQ2 runs.
-file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq1.txt"
-file.called <- "./DAB/data/dab_called_genetic_sex_hiseq1.txt"
-file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq1_sex.txt"
+# file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq1.txt"
+# file.called <- "./DAB/data/dab_called_genetic_sex_hiseq1.txt"
+# file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq1_sex.txt"
 
-# file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq2.txt"
-# file.called <- "./DAB/data/dab_called_genetic_sex_hiseq2.txt"
-# file.freqs <- "./data/frequency_of_sequences_by_marker_hiseq2_sex.txt"
+file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq2.txt"
+file.called <- "./DAB/data/dab_called_genetic_sex_hiseq2.txt"
+file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq2_sex.txt"
 countTS <- 20 # reads that do not match exact sequence should have this number of reads,
               # otherwise they are discarded
 lowCount <- 100 # if unrecognized as sex sequence and below this threshold, flag as "L"
@@ -113,6 +113,7 @@ sps <- split(sexy, f = list(sexy$Sample_Name, sexy$Plate))
 system.time(spsclean <- sapply(sps, FUN = cleanZF, ts = junkTS, db = dbTS, simplify = FALSE))
 spsclean <- rbindlist(spsclean)
 spsclean[Sample_Name %in% sample(spsclean$Sample_Name, 1), -c("Sequence", "TagCombo")]
+
 fwrite(spsclean[order(Sample_Name, Plate, Read_Count)], file = file.called, sep = "\t")
 
 freq.of.seq.by.marker <- spsclean[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
