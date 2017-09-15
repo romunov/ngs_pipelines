@@ -143,7 +143,7 @@ if (do.chunk1) {
     i <<- i + 1
     message(sprintf("Processing %s (%d/%d)", unique(x$samplename), i, numsam)) # scoping out of current env!
     out <- parApply(cl = cl, X = x, MARGIN = 1, FUN = function(y, outdir) {
-    # out <- apply(X = x, MARGIN = 1, FUN = function(y, outdir) {
+      # out <- apply(X = x, MARGIN = 1, FUN = function(y, outdir) {
       microsatTabExtract(filename = y["inputfile"], samplename = y["samplename"], outdir = outdir)
     }, outdir = outdir)
   }, outdir = dir.lsl)
@@ -194,7 +194,7 @@ if (do.chunk2) {
     motif.in <- m[m$locus == findmotif, "motif"]
     system(sprintf("python microsatTabToseries.py -f %s -m %s", x, motif.in))
   }, m = motif)
-
+  
   # sapply(X = lsl, FUN = function(x, m) {
   #   findmotif <- gsub("(^.*_)([[:alnum:]]{2})(\\.uniq.tab$)", "\\2", x, perl = TRUE)
   #   motif.in <- m[m$locus == findmotif, "motif"]
@@ -287,7 +287,7 @@ if (do.chunk3) {
   sapply(names(tws)[2:length(tws)], FUN = function(x) {
     ws[ws == x]
   })
-
+  
   message(sprintf("Processing %d files.", nrow(xy)))
   
   # For each file, read in the data, sort it according to total count of reads, remove unnecessary columns,
@@ -368,13 +368,13 @@ if (do.chunk4) {
   if (!do.chunk3) {
     require(data.table)
     load(raw.rdata)
-    genotypes <- rbindlist(genotypes)
   }
+  genotypes <- rbindlist(genotypes)
   
   # Save blk data into its own data.frame for tidy purposes.
   # genotypes$sequence <- as.character(genotypes$sequence)
   gt <- genotypes
-  rm(genotypes)
+  # rm(genotypes)
   
   # check if each sequence has only one locus
   # unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
@@ -402,7 +402,7 @@ if (do.chunk4) {
   gt <-  gt[, ..getcols]
   
   gt <- gt[order(gt$sample, gt$locus, gt$run, rev(gt$count_run))]
-  gt$run <- gsub("PP", "", gt$run) # remove PP for prettier printing
+  gt$run <- gsub("^.*(\\d+)$", "\\1", gt$run) # remove PP for prettier printing
   
   # rename columns
   names(gt) <- c("Sample_Name", "Plate", "Read_Count", "Marker", "Run_Name", "length", "Position", "Sequence")
@@ -410,14 +410,15 @@ if (do.chunk4) {
   # add tag combo
   xy <- sapply(list.files(dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE),
                FUN = read.table, simplify = FALSE)
-
+  
   xy <- rbindlist(xy)
   rownames(xy) <- NULL
   xy <- as.data.table(xy[, c(1, 2, 3)])
   names(xy) <- c("V1", "V2", "TagCombo")
   
   # create columns by which to merge
-  gt[, fn := sprintf("%s_%s_PP%s", Sample_Name, Position, Plate)]
+  # gt[, fn := sprintf("%s_%s_PP%s", Sample_Name, Position, Plate)]
+  gt[, fn := sprintf("%s_%s_P%s", Sample_Name, Position, Plate)]
   gt[, fl := sprintf(sprintf("UA_MxRout1_%s", Marker))]
   
   gt <- merge(gt, xy, by.x = c("fn", "fl"), by.y = c("V2", "V1"))
@@ -432,7 +433,7 @@ if (do.chunk4) {
 if (do.chunk5) {
   
   message(sprintf("(%s) Chunk5: Processing chunk #5", Sys.time()))
-
+  
   # Clean genotypes and calling alleles ####
   #####
   # library(data.table)
@@ -441,7 +442,7 @@ if (do.chunk5) {
   # clusterEvalQ(cl = cl, expr = library(fishbone))
   
   if (!exists("gt")) load(raw.cleaned.rdata)
-
+  
   # mt <- fread(parscsv, dec = ",",
   #             colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
   #             stringsAsFactors = FALSE, header = TRUE)
