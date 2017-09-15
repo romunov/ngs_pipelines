@@ -114,7 +114,7 @@ for line in file :
 				currentseq=seqsat[cpt:cpt+lenM]
 				if (currentseq==motif) :
 					cpt=cpt+lenM
-				else :
+				else:
 					debm=cpt
 					while (currentseq!=motif) :
 						cpt=cpt+1
@@ -128,7 +128,7 @@ for line in file :
 						currentList[nbmotif*2]=debm
 	
 			### search into family data
-			if (first==1) :
+			if (first==1):
 				seq1_all.append(currentList[0])	
 				motifm1_all.append(currentList[1])
 				posmotifm1_all.append(currentList[2])
@@ -144,9 +144,7 @@ for line in file :
 				fileout.write('\n')
 				nextType=nextType+1
 				first=2
-
-	
-			else :
+			else:
 				cpt=0
 				found=0
 				while (found==0 and cpt<len(seq1_all)) :
@@ -178,6 +176,5 @@ for line in file :
 			currentList=[]
 			for i in range(0,10) :
 				currentList.append("")
-	
-	
+
 file.close()
