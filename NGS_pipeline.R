@@ -21,7 +21,7 @@ if (do.chunk5) do.chunk.init <- TRUE
 
 #### USER INPUT ####
 # Specify project name.
-proj.name <- "DAB_GATC2"
+proj.name <- "DAB_GATC"
 # Specify output file which will be placed inside /data of the project folder.
 raw.rdata <- "raw_genotypes_dab_gatc.RData"
 raw.cleaned.rdata <- "genotypes_dab_gatc_cleaned.RData"
@@ -53,7 +53,7 @@ dir.ngsfilter <- sprintf("./%s/%s", proj.name, dir.ngsfilter)
 dir.uniq.tabl <- sprintf("./%s/%s", proj.name, dir.uniq.tab)
 dir.lsl       <- sprintf("./%s/%s", proj.name, dir.lsl)
 
-# initialize parallel tools
+#### INITIALIZE PARALLEL TOOLS ####
 if (do.chunk.init) {
   # start cores
   if (Sys.info()["sysname"] == "Windows") {
@@ -79,6 +79,7 @@ if (!dir.exists(dir.lsl)) { # create if doesn't exist
   dir.create(dir.lsl)
 }
 
+#### BEGIN PROCESSING CHUNKS ####
 if (do.chunk1) {
   ####################################################
   #### Step 1: Create library-sample-locus files. ####
@@ -191,7 +192,7 @@ if (do.chunk2) {
   
   setwd(dir.lsl)
   parSapply(cl = cl, X = lsl, FUN = function(x, m) {
-  # sapply(X = lsl, FUN = function(x, m) {
+    # sapply(X = lsl, FUN = function(x, m) {
     # browser()
     findmotif <- gsub("(^.*_)([[:alnum:]]{2})(\\.uniq.tab$)", "\\2", x, perl = TRUE)
     motif.in <- m[m$locus == findmotif, "motif"]
@@ -460,7 +461,7 @@ if (do.chunk5) {
   # 23365:             gaagcaacagggtatagatatatagagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
   #####
   message(sprintf("(%s) Chunk5: Begin processing chunk.", Sys.time()))
-
+  
   library(fishbone)
   
   if (!exists("gt")) load(raw.cleaned.rdata)
