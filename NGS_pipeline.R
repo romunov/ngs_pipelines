@@ -8,7 +8,7 @@ library(data.table)
 source("microsatTabExtract.R")
 
 do.chunk.init <- TRUE
-do.chunk1 <- FALSE # create files for each sample/locus using microsatTabExtract
+do.chunk1 <- TRUE # create files for each sample/locus using microsatTabExtract
 do.chunk2 <- TRUE # find series using python script
 do.chunk3 <- TRUE # prepare candidate alleles
 do.chunk4 <- TRUE # clean candidate alleles
@@ -19,25 +19,41 @@ if (do.chunk1) do.chunk.init <- TRUE
 if (do.chunk2) do.chunk.init <- TRUE
 if (do.chunk5) do.chunk.init <- TRUE
 
-# output files
-# /data must exist!
-raw.rdata <- "./DAB_GATC/data/raw_genotypes_dab_gatc.RData"
-raw.cleaned.rdata <- "./DAB_GATC/data/genotypes_dab_gatc_cleaned.RData"
-raw.final <- "./DAB_GATC/data/final_dab_gatc.RData"
-raw.final.txt <- "./DAB/data/dab_gatc_genotypes.txt"
+#### USER INPUT ####
+# Specify project name.
+proj.name <- "DAB_GATC2"
+# Specify output file which will be placed inside /data of the project folder.
+raw.rdata <- "raw_genotypes_dab_gatc.RData"
+raw.cleaned.rdata <- "genotypes_dab_gatc_cleaned.RData"
+raw.final <- "final_dab_gatc.RData"
+raw.final.txt <- "dab_gatc_genotypes.txt"
+# specify (intermediate() folder names.
+dir.ngsfilter <- "1_ngsfilters"
+dir.uniq.tab <- "2_uniq_tab"
+dir.lsl <- "3_lib_sample_locus"
 
-# raw.rdata <- "./DAB/data/raw_genotypes_dab_hiseq1.RData"
-# raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq1_cleaned.RData"
-# raw.final <- "./DAB/data/final_hiseq1.RData"
-# raw.final.txt <- "./DAB/data/dab_hiseq1_genotypes.txt"
+#### PROCESSING OF USER INPUT ####
+# If project folder doesn't exist yet, create on.
+if (!dir.exists(proj.name)) {
+  dir.create(proj.name)
+  dir.create(sprintf("./%s/data", proj.name))
+} else {
+  # create /data inside the project name
+  if (!dir.exists(sprintf("./%s/data", proj.name))) {
+    dir.create(sprintf("./%s/data", proj.name))
+  }
+}
 
-# raw.rdata <- "./DAB/data/raw_genotypes_dab_hiseq2.RData"
-# raw.cleaned.rdata <- "./DAB/data/genotypes_dab_hiseq2_cleaned.RData"
-# raw.final <- "./DAB/data/final_hiseq2.RData"
-# raw.final.txt <- "./DAB/data/dab_hiseq2_genotypes.txt"
+raw.rdata <- sprintf("./%s/data/%s", proj.name, raw.rdata)
+raw.cleaned.rdata <- sprintf("./%s/data/%s", proj.name, raw.cleaned.rdata)
+raw.final <- sprintf("./%s/data/%s", proj.name, raw.final)
+raw.final.txt <- sprintf("./%s/data/%s", proj.name, raw.final.txt)
 
+dir.ngsfilter <- sprintf("./%s/%s", proj.name, dir.ngsfilter)
+dir.uniq.tabl <- sprintf("./%s/%s", proj.name, dir.uniq.tab)
+dir.lsl       <- sprintf("./%s/%s", proj.name, dir.lsl)
 
-# parallel stuff
+# initialize parallel tools
 if (do.chunk.init) {
   # start cores
   if (Sys.info()["sysname"] == "Windows") {
@@ -50,19 +66,6 @@ if (do.chunk.init) {
   cl <- makeCluster(ncores, outfile = "clusterfuck.txt")
   on.exit(stopCluster(cl))
 }
-
-# Store results of step 1 and 2 in this folder
-dir.ngsfilter <- "./DAB_GATC/1_ngsfilters"
-dir.uniq.tab <- "./DAB_GATC/2_uniq_tab"
-dir.lsl <- "./DAB_GATC/3_lib_sample_locus" # notice no trailing slash
-
-# dir.ngsfilter <- "./DAB/1_ngsfilters_hiseq1"
-# dir.uniq.tab <- "./DAB/2_uniq_tab_hiseq1"
-# dir.lsl <- "./DAB/3_lib_sample_locus_hiseq1" # notice no trailing slash
-
-# dir.ngsfilter <- "./1_ngsfilters_hiseq2"
-# dir.uniq.tab <- "./2_uniq_tab_hiseq2"
-# dir.lsl <- "./3_lib_sample_locus_hiseq2"
 
 if (!dir.exists(dir.ngsfilter)) {
   dir.create(dir.ngsfilter)
@@ -100,18 +103,17 @@ if (do.chunk1) {
   message(sprintf("Found %s ngs filters", length(sn)))
   names(sn) <- basename(sn)
   sn <- as.list(sn)
-  sn <- sapply(sn, read.table, simplify = FALSE)
+  sn <- sapply(sn, fread, header = FALSE, colClasses = "character", simplify = FALSE)
   
   inputfile <- list.files(dir.uniq.tab, pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
-  # libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
-  libnum <- rep(1, times = length(inputfile))
+  libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
   libnum <- sprintf("%02d", as.numeric(libnum))
   
   inputfile <- split(inputfile, f = libnum)
   
   # check that correct ngs filter (sample names) are assigned to correct library data
   message("Do input numbers match library ngsfilter file?")
-  print(data.frame(ngsfilter = names(sn), input = names(inputfile)))
+  print(data.table(ngsfilter = names(sn), input = names(inputfile)))
   
   # extract sample names
   # TODO: sample names should be tied to tag combo or position if we want to prevent pooling
@@ -125,10 +127,9 @@ if (do.chunk1) {
   slc <- mapply(FUN = function(x.sample, x.input) {
     expand.grid(samplename = x.sample, inputfile = x.input)
   }, samplenames, inputfile, SIMPLIFY = FALSE)
-  slc <- do.call(rbind, slc)
+  slc <- rbindlist(slc)
   slc$samplename <- as.character(slc$samplename)
   slc$inputfile <- as.character(slc$inputfile)
-  rownames(slc) <- NULL
   
   message(sprintf("Processing %d files to %s.", nrow(slc), dir.lsl))
   
@@ -141,7 +142,7 @@ if (do.chunk1) {
   
   out <- sapply(X = slc, FUN = function(x, dir.lsl, outdir) {
     i <<- i + 1
-    message(sprintf("Processing %s (%d/%d)", unique(x$samplename), i, numsam)) # scoping out of current env!
+    message(sprintf("Processing %s (%d/%d)", unique(x[, samplename]), i, numsam)) # scoping out of current env!
     out <- parApply(cl = cl, X = x, MARGIN = 1, FUN = function(y, outdir) {
       # out <- apply(X = x, MARGIN = 1, FUN = function(y, outdir) {
       microsatTabExtract(filename = y["inputfile"], samplename = y["samplename"], outdir = outdir)
@@ -190,6 +191,8 @@ if (do.chunk2) {
   
   setwd(dir.lsl)
   parSapply(cl = cl, X = lsl, FUN = function(x, m) {
+  # sapply(X = lsl, FUN = function(x, m) {
+    # browser()
     findmotif <- gsub("(^.*_)([[:alnum:]]{2})(\\.uniq.tab$)", "\\2", x, perl = TRUE)
     motif.in <- m[m$locus == findmotif, "motif"]
     system(sprintf("python microsatTabToseries.py -f %s -m %s", x, motif.in))
@@ -263,16 +266,12 @@ if (do.chunk3) {
   # 45 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
   ###############################################
   
-  library(data.table)
-  
   # fetch all series files and append some columns to aid in debugging and viewing of the data
   # (!) notice that this step does not account for locus ZF
-  xy <- data.frame(files = list.files(dir.lsl, pattern = "serie.tab$", full.names = TRUE),
+  xy <- data.table(files = list.files(dir.lsl, pattern = "serie.tab$", full.names = TRUE),
                    stringsAsFactors = FALSE)
   xy$lib <- gsub("^MICROSAT\\.PCR_(DAB\\d+)_.*$", "\\1", basename(xy$files))
-  # xy$sample <- gsub("^.*_(.*)_\\d{2}_serie\\.tab$", "\\1", xy$files)
-  # xy$locus <- gsub("^.*_(.*)_(\\d{2})_serie\\.tab$", "\\2", xy$files)
-  xy$sample <- gsub("^.*_(.*)_\\d+_P\\d_\\d{2}_serie\\.tab$", "\\1", xy$files)
+  xy$sample <- gsub("^.*_(.*)_\\d{2}_serie\\.tab$", "\\1", xy$files)
   xy$locus <- gsub("^.*_(.*)_(\\d{2})_serie\\.tab$", "\\2", xy$files)
   
   smp <- unique(xy$sample)
@@ -331,19 +330,19 @@ if (do.chunk3) {
     # The next two regex statements are similar, except they vary in number
     # of position of groups. \\d{1} means "find 1 digit".
     
-    # io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
-    # io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
-    # io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\3", basename(x$files))
+    io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
+    io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
+    io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\3", basename(x$files))
     # io$position <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\2", io$run)
     # io$run <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\3", io$run)
-    # io$allele <- paste(io$seq_length, io$series, sep = "_")
+    io$allele <- paste(io$seq_length, io$series, sep = "_")
     
-    io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
-    io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
-    io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\5", basename(x$files))
+    # io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
+    # io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
+    # io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\5", basename(x$files))
     io$position <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\2", io$run)
     io$run <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\3", io$run)
-    io$allele <- paste(io$seq_length, io$series, sep = "_")
+    # io$allele <- paste(io$seq_length, io$series, sep = "_")
     
     # Notice that `serie` and `seq_length` are no longer included as they are
     # encapsulated in `allele`.
@@ -374,42 +373,42 @@ if (do.chunk4) {
   # Save blk data into its own data.frame for tidy purposes.
   # genotypes$sequence <- as.character(genotypes$sequence)
   gt <- genotypes
-  # rm(genotypes)
+  rm(genotypes)
   
   # check if each sequence has only one locus
   # unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
   # ... expecting [1] 1
   
-  # Standardize loci names
-  gt.by <- by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
-    x <- x[order(x$count_run, decreasing = TRUE), ]
-    x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence), 
-                                      labels = 1:length(unique(x$sequence))))
-    x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
-    x[order(x$sample, x$run, rev(x$count_run)), ]
-  })
-  
-  gt <- rbindlist(gt.by)
+  # # Standardize loci names
+  # gt.by <- by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
+  #   x <- x[order(x$count_run, decreasing = TRUE), ]
+  #   x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence), 
+  #                                     labels = 1:length(unique(x$sequence))))
+  #   x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
+  #   x[order(x$sample, x$run, rev(x$count_run)), ]
+  # })
+  # 
+  # gt <- rbindlist(gt.by)
   # rm(gt.by)
-  setDT(gt)
   
   # feel free to filter out junk
   gt <- gt[gt$count_run > 3, ]
   
   gt[, length := as.numeric(gsub("^(\\d+)_.*$", "\\1", gt$new_allele))]
   
+  # subset only relevant columns
   getcols <- c("sample", "run", "count_run", "locus", "lib", "length", "position", "sequence")
   gt <-  gt[, ..getcols]
   
   gt <- gt[order(gt$sample, gt$locus, gt$run, rev(gt$count_run))]
-  gt$run <- gsub("^.*(\\d+)$", "\\1", gt$run) # remove PP for prettier printing
+  gt$run <- gsub("^.*(\\d+)$", "\\1", gt$run) # extract run number for prettier printing
   
   # rename columns
   names(gt) <- c("Sample_Name", "Plate", "Read_Count", "Marker", "Run_Name", "length", "Position", "Sequence")
   
   # add tag combo
   xy <- sapply(list.files(dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE),
-               FUN = read.table, simplify = FALSE)
+               FUN = fread, header = FALSE, colClasses = "character", simplify = FALSE)
   
   xy <- rbindlist(xy)
   rownames(xy) <- NULL
@@ -417,8 +416,9 @@ if (do.chunk4) {
   names(xy) <- c("V1", "V2", "TagCombo")
   
   # create columns by which to merge
-  # gt[, fn := sprintf("%s_%s_PP%s", Sample_Name, Position, Plate)]
-  gt[, fn := sprintf("%s_%s_P%s", Sample_Name, Position, Plate)]
+  gt[, fn := sprintf("%s_%s_PP%s", Sample_Name, Position, Plate)]
+  # this is here temorarily - switch between primer plate designation P and PP
+  # gt[, fn := sprintf("%s_%s_P%s", Sample_Name, Position, Plate)]
   gt[, fl := sprintf(sprintf("UA_MxRout1_%s", Marker))]
   
   gt <- merge(gt, xy, by.x = c("fn", "fl"), by.y = c("V2", "V1"))
@@ -431,46 +431,51 @@ if (do.chunk4) {
 }
 
 if (do.chunk5) {
+  #### Clean genotypes and calling alleles ####
+  # Accepts data in the following format:
   
-  message(sprintf("(%s) Chunk5: Processing chunk #5", Sys.time()))
-  
-  # Clean genotypes and calling alleles ####
+  # Sample_Name Plate Read_Count Marker Run_Name length Position
+  # 1:       Blk01     1          9     03    DAB01     55      040
+  # 2:       Blk01     1          5     03    DAB01     59      040
+  # 3:       Blk01     1          4     03    DAB01     67      040
+  # 4:       Blk01     1         10     16    DAB01     79      040
+  # 5:       Blk01     1          9     16    DAB01     75      040
+  # ---                                                             
+  #   23361:    M20T8.MM     8          6     63    DAB01     84      069
+  # 23362:    M20T8.MM     8          5     63    DAB01     77      069
+  # 23363:    M20T8.MM     8         37     65    DAB01     93      069
+  # 23364:    M20T8.MM     8         18     65    DAB01     89      069
+  # 23365:    M20T8.MM     8         11     65    DAB01     81      069
+  # Sequence          TagCombo
+  # 1:                                       aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctc tagtcgca:gatcgcga
+  # 2:                                   aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctatctc tagtcgca:gatcgcga
+  # 3:                           aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctatctatctatctc tagtcgca:gatcgcga
+  # 4:               aattttgttctttctttctttctttctttctttctttctttctttctttctttctttctttctttctctttcttttcag tagtcgca:gatcgcga
+  # 5:                   aattttgttctttctttctttctttctttctttctttctttctttctttctttctttctttctctttcttttcag tagtcgca:gatcgcga
+  # ---                                                                                                                
+  #   23361:          tccatccatcatccatcatccatccatccatccatccatccatccatccatccatccggttactgctcatttaaaagcatggtc ggatagca:gtgatctc
+  # 23362:                 tccatccatcatccatccatccatccatccatccatccatccatccatccggttactgctcatttaaaagcatggtc ggatagca:gtgatctc
+  # 23363: gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
+  # 23364:     gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
+  # 23365:             gaagcaacagggtatagatatatagagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
   #####
-  # library(data.table)
+  message(sprintf("(%s) Chunk5: Begin processing chunk.", Sys.time()))
+
   library(fishbone)
-  
-  # clusterEvalQ(cl = cl, expr = library(fishbone))
   
   if (!exists("gt")) load(raw.cleaned.rdata)
   
-  # mt <- fread(parscsv, dec = ",",
-  #             colClasses = list(character = c(1, 2), numeric = c(3, 4, 5, 6)),
-  #             stringsAsFactors = FALSE, header = TRUE)
   data(mt) # from fishbone package
-  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt), 
+  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt),
                         by = .(Sample_Name, Marker, Plate)])
   
-  # message(sprintf("(%s) Chunk5: Splitting genotypes by sample name, marker and plate.", Sys.time()))
-  # gen <- split(gt, f = list(gt$Sample_Name, gt$Marker, gt$Plate))
-  # 
-  # message(sprintf("(%s) Chunk5: Calling alleles, this may take a while.", Sys.time()))
-  # out <- parSapply(cl = cl, gen, FUN = callAllele, tbase = mt, simplify = FALSE)
-  # 
-  # message(sprintf("(%s) Chunk5: Saving final RData file", Sys.time()))
+  # data.table adds variables used to "by" - here we remove them
+  out <- out[, 4:ncol(out)]
   
-  # these runs had no candidate alleles
-  # out <- out[!is.na(Read_Count), ]
-  out <- out[, 4:ncol(out)] # data.table adds variables used to "by" - here we remove them
+  message("Chunk 5: Writing final genotype to .RData file.")
   save(out, file = raw.final)
   
-  # no.alleles <- sapply(out, class)
-  # out <- out[no.alleles != "character"]
-  # no.alleles <- sapply(out, nrow)
-  # no.alleles <- unlist(no.alleles)
-  # out <- out[no.alleles > 0]
-  # out <- rbindlist(out)
-  
-  message("Chunk5: Writing final genotypes.")
+  message("Chunk 5: Writing final genotypes to a text file.")
   fwrite(out, file = raw.final.txt, sep = "\t")
   message("Done processing chunk #5.")
 }
