@@ -21,12 +21,12 @@ if (do.chunk5) do.chunk.init <- TRUE
 
 #### USER INPUT ####
 # Specify project name.
-proj.name <- "DAB_GATC"
+proj.name <- "DAB_FASTERIS"
 # Specify output file which will be placed inside /data of the project folder.
-raw.rdata <- "raw_genotypes_dab_gatc.RData"
-raw.cleaned.rdata <- "genotypes_dab_gatc_cleaned.RData"
-raw.final <- "final_dab_gatc.RData"
-raw.final.txt <- "dab_gatc_genotypes.txt"
+raw.rdata <- "raw_genotypes_dab_fasteris.RData"
+raw.cleaned.rdata <- "genotypes_dab_fasteris_cleaned.RData"
+raw.final <- "final_dab_fasteris.RData"
+raw.final.txt <- "dab_fasteris_genotypes.txt"
 # specify (intermediate() folder names.
 dir.ngsfilter <- "1_ngsfilters"
 dir.uniq.tab <- "2_uniq_tab"
@@ -50,7 +50,7 @@ raw.final <- sprintf("./%s/data/%s", proj.name, raw.final)
 raw.final.txt <- sprintf("./%s/data/%s", proj.name, raw.final.txt)
 
 dir.ngsfilter <- sprintf("./%s/%s", proj.name, dir.ngsfilter)
-dir.uniq.tabl <- sprintf("./%s/%s", proj.name, dir.uniq.tab)
+dir.uniq.tab <- sprintf("./%s/%s", proj.name, dir.uniq.tab)
 dir.lsl       <- sprintf("./%s/%s", proj.name, dir.lsl)
 
 #### INITIALIZE PARALLEL TOOLS ####
