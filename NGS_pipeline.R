@@ -1,36 +1,42 @@
-# This is the R part of the pipeline used to analyze NGS data received from Fasteris. Study
+# This is the R part of the pipeline used to analyze NGS data. Study
 # species is brown bear, Ursus arctos.
 
 library(parallel)
 library(tidyr)
 library(data.table)
+source("custom_functions.R")
+source("determine_sex_from_ZF.R")  # needed to call sex from samples
 
+# Have these files in the "home" folder of the analysis (ngs_pipelines repo)
 source("microsatTabExtract.R")
+locus.motifs <- "locus_motifs.txt"  # motif represented by each locus
+microsattotab.py <- "microsatTabToseries.py"  # a python script which finds "series"
 
-do.chunk.init <- TRUE
-do.chunk1 <- TRUE # create files for each sample/locus using microsatTabExtract
-do.chunk2 <- TRUE # find series using python script
-do.chunk3 <- TRUE # prepare candidate alleles
-do.chunk4 <- TRUE # clean candidate alleles
-do.chunk5 <- TRUE # call alleles
+do.chunk.init <- TRUE  # this will be set to TRUE if needed by specific chunk
+do.chunk1 <- TRUE  # create files for each sample/locus using microsatTabExtract
+do.chunk2 <- TRUE  # find series using python script
+do.chunk3 <- TRUE  # prepare candidate alleles
+do.chunk4 <- TRUE  # clean candidate alleles
+do.chunk5 <- TRUE  # call alleles
+do.chunk6 <- TRUE  # call sex
 
 # for chunks running in parallel, always turn on init chunk to start up workers
 if (do.chunk1) do.chunk.init <- TRUE
 if (do.chunk2) do.chunk.init <- TRUE
-if (do.chunk5) do.chunk.init <- TRUE
 
 #### USER INPUT ####
 # Specify project name.
-proj.name <- "DAB_FASTERIS"
+proj.name <- "FCC2"
 # Specify output file which will be placed inside /data of the project folder.
-raw.rdata <- "raw_genotypes_dab_fasteris.RData"
-raw.cleaned.rdata <- "genotypes_dab_fasteris_cleaned.RData"
-raw.final <- "final_dab_fasteris.RData"
-raw.final.txt <- "dab_fasteris_genotypes.txt"
+raw.rdata <- sprintf("./%s/data/raw_genotypes_%s.RData", proj.name, proj.name)
+raw.cleaned.rdata <- sprintf("./%s/data/genotypes_%s_cleaned.RData", proj.name, proj.name)
+raw.final <- sprintf("./%s/data/final_dab_%s.RData", proj.name, proj.name)
+raw.final.txt <- sprintf("./%s/data/%s_genotypes.txt", proj.name, proj.name)
+
 # specify (intermediate() folder names.
-dir.ngsfilter <- "1_ngsfilters"
-dir.uniq.tab <- "2_uniq_tab"
-dir.lsl <- "3_lib_sample_locus"
+dir.ngsfilter <- sprintf("./%s/1_ngsfilters", proj.name)
+dir.uniq.tab <- sprintf("./%s/2_uniq_tab", proj.name)
+dir.lsl       <- sprintf("./%s/3_lib_sample_locus", proj.name)
 
 #### PROCESSING OF USER INPUT ####
 # If project folder doesn't exist yet, create on.
@@ -44,23 +50,10 @@ if (!dir.exists(proj.name)) {
   }
 }
 
-raw.rdata <- sprintf("./%s/data/%s", proj.name, raw.rdata)
-raw.cleaned.rdata <- sprintf("./%s/data/%s", proj.name, raw.cleaned.rdata)
-raw.final <- sprintf("./%s/data/%s", proj.name, raw.final)
-raw.final.txt <- sprintf("./%s/data/%s", proj.name, raw.final.txt)
-
-dir.ngsfilter <- sprintf("./%s/%s", proj.name, dir.ngsfilter)
-dir.uniq.tab <- sprintf("./%s/%s", proj.name, dir.uniq.tab)
-dir.lsl       <- sprintf("./%s/%s", proj.name, dir.lsl)
 
 #### INITIALIZE PARALLEL TOOLS ####
 if (do.chunk.init) {
-  # start cores
-  if (Sys.info()["sysname"] == "Windows") {
-    ncores <- 4
-  } else {
-    ncores <- 48
-  }
+  ncores <- detectCores() - 1
   
   message(sprintf("Powering up %d processes.", ncores))
   cl <- makeCluster(ncores, outfile = "clusterfuck.txt")
@@ -106,12 +99,23 @@ if (do.chunk1) {
   sn <- as.list(sn)
   sn <- sapply(sn, fread, header = FALSE, colClasses = "character", simplify = FALSE)
   
+  # TODO: this part could be programmed to move .uniq.tab files from .. to ./PROJECT/2_uniq_tab.
   inputfile <- list.files(dir.uniq.tab, pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
-  libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
-  libnum <- sprintf("%02d", as.numeric(libnum))
+  libnum <- gsub("^.*-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
+  # libnum <- sprintf("%02d", as.numeric(libnum))  # this line is needed if lib number is not preceded by 0
   
   inputfile <- split(inputfile, f = libnum)
   
+  # Remove any ngs filters for which there is no data (e.g.).
+  for (i in 1:length(sn)) {
+    # Check if any of the library numbers appear in the ngsfilter name.
+    lib.detected <- any(sapply(unique(libnum), grepl, x = names(sn)[i]))
+    # If library is not detected, remove it from ngs filters
+    if (!lib.detected) {
+      message(sprintf("Library %s not detected, excluded from the analysis.", names(sn)[i]))
+      sn[i] <- NULL
+    }
+  }
   # check that correct ngs filter (sample names) are assigned to correct library data
   message("Do input numbers match library ngsfilter file?")
   print(data.table(ngsfilter = names(sn), input = names(inputfile)))
@@ -120,9 +124,9 @@ if (do.chunk1) {
   # TODO: sample names should be tied to tag combo or position if we want to prevent pooling
   # of repeats between plates of a given run
   samplenames <- sapply(sn, FUN = function(x) as.character(x$V2), simplify = FALSE)
-  samplenames <- sapply(samplenames, FUN = function(x) {
-    unique(gsub("^(.*)_[[:alnum:]]{3}_PP\\d+$", "\\1", x))
-  }, simplify = FALSE)
+  # samplenames <- sapply(samplenames, FUN = function(x) {
+  #   unique(gsub("^(.*)_[[:alnum:]]{3}_PP\\d+$", "\\1", x))
+  # }, simplify = FALSE)
   
   # Create a combination to extract alleles from all loci for a given sample.
   slc <- mapply(FUN = function(x.sample, x.input) {
@@ -168,19 +172,20 @@ if (do.chunk2) {
   
   # find files created by microsatTabExtract()
   # NOTICE: ZF locus is excluded from the analysis
-  # NOTICE: copy microsatTabToseries.py to where the uniq.tab files are being processed
   # lsl = library-sample-locus files
   
   oldwd <- getwd()
-  file.copy(from = "microsatTabToseries.py", to = paste(dir.lsl, "microsatTabToseries.py", sep = "/"),
+  # NOTICE: copy microsatTabToseries.py to where the uniq.tab files are being processed
+  file.copy(from = microsattotab.py, to = paste(dir.lsl, "microsatTabToseries.py", sep = "/"),
             overwrite = TRUE)
   
   lsl <- list.files(path = dir.lsl, pattern = "_\\d+\\.uniq\\.tab$")
   # load motif data
-  motif <- read.table("locus_motifs.txt", header = TRUE,
+  motif <- read.table(locus.motifs, header = TRUE,
                       colClasses = c("character", "character"))
   
   message(sprintf("Found %d files to process.", length(lsl)))
+  message("Sample of files:")
   print(head(lsl))
   
   if (!file.exists("microsatTabToseries.py")) stop("microsatTabToseries.py not found")
@@ -193,12 +198,12 @@ if (do.chunk2) {
   setwd(dir.lsl)
   parSapply(cl = cl, X = lsl, FUN = function(x, m) {
     # sapply(X = lsl, FUN = function(x, m) {
-    # browser()
     findmotif <- gsub("(^.*_)([[:alnum:]]{2})(\\.uniq.tab$)", "\\2", x, perl = TRUE)
     motif.in <- m[m$locus == findmotif, "motif"]
     system(sprintf("python microsatTabToseries.py -f %s -m %s", x, motif.in))
   }, m = motif)
   
+  # This chunk is used for debugging.
   # sapply(X = lsl, FUN = function(x, m) {
   #   findmotif <- gsub("(^.*_)([[:alnum:]]{2})(\\.uniq.tab$)", "\\2", x, perl = TRUE)
   #   motif.in <- m[m$locus == findmotif, "motif"]
@@ -247,33 +252,57 @@ if (do.chunk3) {
   # 6             tccttttcttttctttctttctttctttctttctttctttctttctttctttctttctttcaacaaaca      2
   # 
   #  And output is:
-  #       sample run count_run locus allele
-  # 3  M0P0K.MM  P1         9   064   97_1
-  # 9  M0P0K.MM  P2        88   064   97_1
-  # 15 M0P0K.MM  P3         5   064   97_1
-  # 21 M0P0K.MM  P4        51   064   97_1
-  # 27 M0P0K.MM  P5        17   064   97_1
-  # 33 M0P0K.MM  P6        92   064   97_1
-  # 39 M0P0K.MM  P7        16   064   97_1
-  # 45 M0P0K.MM  P8        66   064   97_1
-  # sequence
-  # 3  gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
-  # 9  gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
-  # 15 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
-  # 21 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
-  # 27 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
-  # 33 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
-  # 39 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
-  # 45 gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc
+  #        sample                       run count_run locus allele
+  # 1  B07blank01 sample:B07blank01_072_PP1         9    03   59_1
+  # 2  B07blank01 sample:B07blank01_072_PP1         8    03   63_1
+  # 3  B07blank01 sample:B07blank01_072_PP1         3    03   63_2
+  # 4  B07blank01 sample:B07blank01_072_PP1         2    03   67_1
+  # 5  B07blank01 sample:B07blank01_072_PP1         2    03   59_3
+  # 6  B07blank01 sample:B07blank01_072_PP1         1    03   67_4
+  # 7  B07blank01 sample:B07blank01_072_PP1         1    03   63_5
+  # 8  B07blank01 sample:B07blank01_072_PP1         1    03   63_6
+  # 9  B07blank01 sample:B07blank01_072_PP1         1    03   59_7
+  # 10 B07blank01 sample:B07blank01_072_PP1         1    03   59_8
+  # 11 B07blank01 sample:B07blank01_072_PP1         1    03   55_1
+  #                                                               sequence    lib
+  # 1          aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctatctc DAB045
+  # 2      aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctatctatctc DAB045
+  # 3      aaatcctgtaacaaatctatctatctatctatctatctatctatctacctatctatctatctc DAB045
+  # 4  aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctatctatctatctc DAB045
+  # 5          aaatcctgtgacaaatctatctatctatctatctatctatctatctatctatctatctc DAB045
+  # 6  aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctatctatctatcta DAB045
+  # 7      aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatccatctatctc DAB045
+  # 8      aaatcctgtaacaaatctatctatctatctatctatctatccatctatctatctatctatcta DAB045
+  # 9          aaatcctgtaacgaatctatctatctatctatctatctatctatctatctatctatctc DAB045
+  # 10         aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctatcac DAB045
+  # 11             aaatcctgtaacaaatctatctatctatctatctatctatctatctatctatctc DAB045
+  #    position plate
+  # 1       072   PP1
+  # 2       072   PP1
+  # 3       072   PP1
+  # 4       072   PP1
+  # 5       072   PP1
+  # 6       072   PP1
+  # 7       072   PP1
+  # 8       072   PP1
+  # 9       072   PP1
+  # 10      072   PP1
+  # 11      072   PP1
   ###############################################
   
   # fetch all series files and append some columns to aid in debugging and viewing of the data
   # (!) notice that this step does not account for locus ZF
+  stringy <- "^MICROSAT.PCR_(DAB\\d+)_(.*)_(.*)_(.*)_(.*)_serie.tab$"
+  #                                                    |- locus    (5)
+  #                                               |------ plate    (4)
+  #                                          |----------- position (3)
+  #                                     |---------------- sample   (2)
+  #                             |------------------------ library  (1)
+  
   xy <- data.table(files = list.files(dir.lsl, pattern = "serie.tab$", full.names = TRUE),
                    stringsAsFactors = FALSE)
-  xy$lib <- gsub("^MICROSAT\\.PCR_(DAB\\d+)_.*$", "\\1", basename(xy$files))
-  xy$sample <- gsub("^.*_(.*)_\\d{2}_serie\\.tab$", "\\1", xy$files)
-  xy$locus <- gsub("^.*_(.*)_(\\d{2})_serie\\.tab$", "\\2", xy$files)
+  xy$lib <- gsub(stringy, "\\1", basename(xy$files))
+  xy$sample <- gsub(stringy, "\\2", basename(xy$files))
   
   smp <- unique(xy$sample)
   xy[xy$sample %in% sample(smp, size = 1), ]
@@ -291,13 +320,13 @@ if (do.chunk3) {
   message(sprintf("Processing %d files.", nrow(xy)))
   
   # For each file, read in the data, sort it according to total count of reads, remove unnecessary columns,
-  # reflow ata into a long format for all repeats, modify or create some new columns like sample, locus, run,
+  # reflow data into a long format for all repeats, modify or create some new columns like sample, locus, run,
   # and finish by reordering the result according to count within each run.
   
   xy$proc <- sprintf("%s (%d/%d)", xy$files, 1:nrow(xy), nrow(xy))
   xy <- split(xy, f = 1:nrow(xy))
   
-  genotypes <- sapply(X = xy, FUN = function(x) {
+  genotypes <- sapply(X = xy, FUN = function(x, ptn) {
     # Prints progress report every 100 files.
     if (as.numeric(gsub("^.*\\((\\d+)/\\d+\\)$", "\\1", x$proc)) %% 100 == 0) {
       message(sprintf("Processing %s at locus %s at %s", x$proc, x$locus, Sys.time()))
@@ -331,19 +360,13 @@ if (do.chunk3) {
     # The next two regex statements are similar, except they vary in number
     # of position of groups. \\d{1} means "find 1 digit".
     
-    io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
-    io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
-    io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(\\d+)_serie.tab$", "\\3", basename(x$files))
-    # io$position <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\2", io$run)
-    # io$run <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\3", io$run)
+    io$lib <- gsub(stringy, "\\1", basename(x$files))
+    io$sample <- gsub(stringy, "\\2", basename(x$files))
+    io$locus <- gsub(stringy, "\\5", basename(x$files))
+    io$position <- gsub(stringy, "\\3", basename(x$files))
+    io$run <- gsub(stringy, "\\4", basename(x$files))
+    io$locus <- gsub(stringy, "\\5", basename(x$files))
     io$allele <- paste(io$seq_length, io$series, sep = "_")
-    
-    # io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
-    # io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
-    # io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\5", basename(x$files))
-    io$position <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\2", io$run)
-    io$run <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\3", io$run)
-    # io$allele <- paste(io$seq_length, io$series, sep = "_")
     
     # Notice that `serie` and `seq_length` are no longer included as they are
     # encapsulated in `allele`.
@@ -353,7 +376,7 @@ if (do.chunk3) {
     io <- io[order(rev(io$run), io$count_run, decreasing = TRUE), ]
     io <- io[io$count_run > 0, ]
     io
-  }, simplify = FALSE)
+  }, ptn = stringy, simplify = FALSE)
   
   ## Save data into a .RData file in case shit hits the fan.
   genotypes <- genotypes[!is.na(genotypes)]
@@ -363,37 +386,33 @@ if (do.chunk3) {
 if (do.chunk4) {
   
   message(sprintf("(%s) Processing chunk #4", Sys.time()))
+  ##################################
   #### Prepare data for saving. ####
   ##################################
   if (!do.chunk3) {
     require(data.table)
     load(raw.rdata)
   }
-  genotypes <- rbindlist(genotypes)
+  gt <- rbindlist(genotypes)
   
-  # Save blk data into its own data.frame for tidy purposes.
-  # genotypes$sequence <- as.character(genotypes$sequence)
-  gt <- genotypes
-  rm(genotypes)
+  # # uncomment only if lib, position and run are FUBAR
+  # gt$lib <- gsub("(^DAB\\d+)_A\\d+$", "\\1", gt$lib)
+  # gt$position <- gsub("^sample:.*_(\\d{3})_PP\\d$", "\\1", gt$position)
+  # gt$run <- gsub("^sample:.*_(PP\\d)$", "\\1", gt$run)
   
-  # check if each sequence has only one locus
-  # unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
-  # ... expecting [1] 1
-  
-  # # Standardize loci names
-  # gt.by <- by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
-  #   x <- x[order(x$count_run, decreasing = TRUE), ]
-  #   x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence), 
-  #                                     labels = 1:length(unique(x$sequence))))
-  #   x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
-  #   x[order(x$sample, x$run, rev(x$count_run)), ]
-  # })
-  # 
-  # gt <- rbindlist(gt.by)
-  # rm(gt.by)
+  # Standardize loci names
+  gt.by <- by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
+    x <- x[order(x$count_run, decreasing = TRUE), ]
+    x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence),
+                                      labels = 1:length(unique(x$sequence))))
+    x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
+    x[order(x$sample, x$run, rev(x$count_run)), ]
+  })
+  gt <- rbindlist(gt.by)
+  rm(gt.by)
   
   # feel free to filter out junk
-  gt <- gt[gt$count_run > 3, ]
+  gt <- gt[gt$count_run > 9, ]
   
   gt[, length := as.numeric(gsub("^(\\d+)_.*$", "\\1", gt$new_allele))]
   
@@ -409,12 +428,28 @@ if (do.chunk4) {
   
   # add tag combo
   xy <- sapply(list.files(dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE),
-               FUN = fread, header = FALSE, colClasses = "character", simplify = FALSE)
+               FUN = function(x) {
+                 out <- fread(x, header = FALSE, colClasses = "character")
+                 out$rn <- gsub("\\.ngsfilter", "", basename(x))
+                 out
+               },
+               simplify = FALSE)
+  
+  # Remove any ngs filters for which there is no data (e.g.).
+  for (i in 1:length(xy)) {
+    # Check if any of the library numbers appear in the ngsfilter name.
+    lib.detected <- any(sapply(unique(libnum), grepl, x = names(xy)[i]))
+    # If library is not detected, remove it from ngs filters
+    if (!lib.detected) {
+      message(sprintf("Library %s not detected, excluded from the analysis.", names(xy)[i]))
+      xy[i] <- NULL
+    }
+  }
   
   xy <- rbindlist(xy)
   rownames(xy) <- NULL
-  xy <- as.data.table(xy[, c(1, 2, 3)])
-  names(xy) <- c("V1", "V2", "TagCombo")
+  xy <- as.data.table(xy[, c(1, 2, 3, 8)])
+  names(xy) <- c("V1", "V2", "TagCombo", "rn")
   
   # create columns by which to merge
   gt[, fn := sprintf("%s_%s_PP%s", Sample_Name, Position, Plate)]
@@ -422,7 +457,7 @@ if (do.chunk4) {
   # gt[, fn := sprintf("%s_%s_P%s", Sample_Name, Position, Plate)]
   gt[, fl := sprintf(sprintf("UA_MxRout1_%s", Marker))]
   
-  gt <- merge(gt, xy, by.x = c("fn", "fl"), by.y = c("V2", "V1"))
+  gt <- merge(gt, xy, by.x = c("fn", "fl", "Run_Name"), by.y = c("V2", "V1", "rn"))
   gt[, fn := NULL]
   gt[, fl := NULL]
   
@@ -460,18 +495,18 @@ if (do.chunk5) {
   # 23364:     gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
   # 23365:             gaagcaacagggtatagatatatagagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
   #####
-  message(sprintf("(%s) Chunk5: Begin processing chunk.", Sys.time()))
+  message(sprintf("(%s) Chunk 5: Begin processing chunk.", Sys.time()))
   
   library(fishbone)
   
   if (!exists("gt")) load(raw.cleaned.rdata)
   
   data(mt) # from fishbone package
-  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt),
-                        by = .(Sample_Name, Marker, Plate)])
+  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt, verbose = TRUE),
+                        by = .(Sample_Name, Marker, Plate, Run_Name)])
   
   # data.table adds variables used to "by" - here we remove them
-  out <- out[, 4:ncol(out)]
+  out <- out[, 5:ncol(out)]
   
   message("Chunk 5: Writing final genotype to .RData file.")
   save(out, file = raw.final)
@@ -479,4 +514,8 @@ if (do.chunk5) {
   message("Chunk 5: Writing final genotypes to a text file.")
   fwrite(out, file = raw.final.txt, sep = "\t")
   message("Done processing chunk #5.")
+}
+
+if (do.chunk6) {
+  sex <- determineSex(proj.name = proj.name)
 }
