@@ -10,9 +10,11 @@ library(tools)
 # TODO: implement _moving_ of intermediate files to (a) predestined location(s)
 
 #### Cleanup ####
-remove.bad.illuminapairedend <- FALSE # remove files which contain Bad alignments
-remove.unidentified.illuminapairedend <- FALSE # remove files with unidentified reads
-remove.filtered.files <- FALSE # after combining filtered files to a single file, remove split chunks?
+remove.bad.illuminapairedend <- TRUE # remove files which contain Bad alignments
+remove.unidentified.illuminapairended <- TRUE # remove files with unidentified reads
+remove.pairended.illuminapairended <- TRUE # remove pairended result from illuminapairended
+remove.alignement.illuminapairedend  <- TRUE # remove aligned files from illuminapairended
+remove.filtered.files <- TRUE # after combining filtered files to a single file, remove split chunks?
 ####
 
 # Find the number of available cores.
@@ -24,11 +26,14 @@ N <- as.integer(system("nproc", intern = TRUE))
 #                                        file   library run                         filter
 # 1: NG-12425_E45175_lib187741_5356_6_1.fastq DAB01GATC   1 dab_gatc_named_ctrls.ngsfilter
 # 2: NG-12425_E45175_lib187741_5356_6_2.fastq DAB01GATC   1 dab_gatc_named_ctrls.ngsfilter
+setwd("/home/romunov/Documents/ngs_gatc_06_2017")
+
 xy <- fread("input_gatc.txt", header = TRUE)
 xy <- split(xy, f = list(xy$library, xy$run))
 
 # For each unique combination/library, run the following pipeline.
 xy.split <- sapply(xy, FUN = function(x, N) {
+  browser()
   file.no.ext <- file_path_sans_ext(x$file)
   # x is a data.frame with file, library and run columns
   
@@ -59,7 +64,7 @@ xy.split <- sapply(xy, FUN = function(x, N) {
   chunks$pairended <- sprintf("pairended_%s_%s.fastq", unique(x$library), chunks$chunk)
   
   # construct a string that will pairend forward and reverse read
-  run.pe <- sprintf("illuminapairedend -r %s %s | tee %s | obiannotate -S goodAli:'\"Alignement\" if score>40.00 else \"Bad\"' | obisplit -t goodAli -p %s",
+  run.pe <- sprintf("illuminapairended -r %s %s | tee %s | obiannotate -S goodAli:'\"Alignement\" if score>40.00 else \"Bad\"' | obisplit -t goodAli -p %s",
                     # illuminapairedend
                     chunks$strand2, # forward strand
                     chunks$strand1, # reverse strand
@@ -68,8 +73,7 @@ xy.split <- sapply(xy, FUN = function(x, N) {
                     chunks$pairended, # which chunk
                     # obisplit
                     # unique(x$library), # library
-                    chunks$output
-  )
+                    chunks$output)
   
   # TODO: system(paste(run.pe, collapse = " & "))
   
@@ -102,32 +106,48 @@ xy.split <- sapply(xy, FUN = function(x, N) {
   
   # Remove files that hold unidentified sequences.
   # TODO: user should be also able to move the data to a prespecified location(s)
-  if (remove.unidentified.illuminapairedend) {
+  if (remove.unidentified.illuminapairended) {
     rm.unident <- list.files(pattern = "^.*_unidentified.fastq$")
     if (length(rm.unident) > 0) {
       file.remove(rm.unident)
     }
   }
   
+  if (remove.pairended.illuminapairended) {
+    rm.parend <- list.files(pattern = "^rawdata_pairended.*\\.fastq$")
+    if (length(rm.parend) > 0) {
+      file.remove(rm.parend)
+    }
+  }
+  
+  if (remove.alignement.illuminapairedend) {
+    rm.alg <- list.files(pattern = "^rawdata_.*Alignement\\.fastq$")
+    if (length(rm.alg) > 0) {
+      file.remove(rm.alg)
+    }
+  }
+  
   # merge chunks into a single chunk before processing further
-  filtered <- list.files(pattern = "_filtered\\.fastq$")
-  system(sprintf("cat %s > %s_filtered.fastq", 
-                 paste(filtered, collapse = " "),
-                 unique(x$library))
-  )
+  filtered <- list.files(pattern = "^rawdata.*_filtered\\.fastq$")
+  # system(sprintf("cat %s > %s_filtered.fastq", 
+  #                paste(filtered, collapse = " "),
+  #                unique(x$library))
+  # )
   
   if (remove.filtered.files) {
-    print(filtered)
-    file.remove(filtered)
+    if (length(filtered) > 0) {
+      file.remove(filtered)
+    }
   }
   
   # RUN #: run.splitdatabylocus
   # split data by locus
-  run.splitlocus <- sprintf("obisplit -p MICROSAT.PCR_%s -t experiment %s_filtered.fastq", 
+  run.splitlocus <- sprintf("obisplit -p MICROSAT.PCR_%s_ -t experiment %s_filtered.fastq", 
                             unique(x$library), 
                             unique(x$library))
-  # system(run.splitlocus)
-  # obisplit -p MICROSAT.PCR_ -t experiment rawdata_gatc_medvedi.filtered.fastq
+  system(run.splitlocus)
+  # add export/bin to PATH to expose all available tools to the console/shell
+  # PATH="$PATH:$HOME/OBITools-1.2.11/export/bin"
   
   # NULL
 }, N = N, simplify = FALSE)
