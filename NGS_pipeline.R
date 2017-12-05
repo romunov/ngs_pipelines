@@ -21,12 +21,12 @@ if (do.chunk5) do.chunk.init <- TRUE
 
 #### USER INPUT ####
 # Specify project name.
-proj.name <- "DAB_FASTERIS"
+proj.name <- "DAB_GATC2"
 # Specify output file which will be placed inside /data of the project folder.
-raw.rdata <- "raw_genotypes_dab_fasteris.RData"
-raw.cleaned.rdata <- "genotypes_dab_fasteris_cleaned.RData"
-raw.final <- "final_dab_fasteris.RData"
-raw.final.txt <- "dab_fasteris_genotypes.txt"
+raw.rdata <- "raw_genotypes_dab_gatc2.RData"
+raw.cleaned.rdata <- "genotypes_dab_gatc2_cleaned.RData"
+raw.final <- "final_dab_gatc2.RData"
+raw.final.txt <- "dab_gatc2_genotypes.txt"
 # specify (intermediate() folder names.
 dir.ngsfilter <- "1_ngsfilters"
 dir.uniq.tab <- "2_uniq_tab"
@@ -107,7 +107,7 @@ if (do.chunk1) {
   sn <- sapply(sn, fread, header = FALSE, colClasses = "character", simplify = FALSE)
   
   inputfile <- list.files(dir.uniq.tab, pattern = "^MICROSAT.*\\.uniq\\.tab$", full.names = TRUE)
-  libnum <- gsub("^.*_JFV-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
+  libnum <- gsub("^.*-(\\d+)_UA_.*\\.uniq.tab$", "\\1", basename(inputfile))
   libnum <- sprintf("%02d", as.numeric(libnum))
   
   inputfile <- split(inputfile, f = libnum)

@@ -13,6 +13,7 @@ dir.output <- "./DAB_GATC2/1_ngsfilters" # no trailing slash, where files are to
 
 # This file contains data which maps which aliquot plate comes from which library.
 map.AP <- "./DAB_GATC2/0_prep_ngsfiltes/171024_PlateNames_gatc_nov_2017.xlsx"
+map.sheet <- "PCR_Plates_4Reps_2Reps"
 
 # Combination of tags to determine sample position/identity.
 # PP has columns position, slo, PP1, PP2, ... PP8 which designates which position (1-96) holds which forward
@@ -49,7 +50,7 @@ if (nrow(AP) == 0) {
 
 # 2. Find which AP is added to which PP.
 pa.loc <- as.data.frame(read_excel(map.AP, 
-                                   sheet = "PCR_Plates_4Reps_2Reps"))
+                                   sheet = map.sheet))
 
 # select which libraries you wish to run through this script
 # pa.loc <- droplevels(pa.loc[pa.loc$Library_BC %in% sprintf("DAB%02d", 13:24, sep = ""), ])
