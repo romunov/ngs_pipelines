@@ -9,19 +9,17 @@ source("custom_functions.R")
 # Point this line to the folder where .uniqe.tab files of ZF are located.
 # xy.file <- list.files("./DAB/zf_hiseq1/", full.names = TRUE)
 # ngs.files <- list.files("./DAB/1_ngsfilters_hiseq1/", pattern = ".ngsfilter", full.names = TRUE)
-xy.file <- list.files("./DAB/zf_hiseq2/", full.names = TRUE)
-ngs.files <- list.files("./DAB/1_ngsfilters_hiseq2/", pattern = ".ngsfilter", full.names = TRUE)
+xy.file <- list.files("./DAB_GATC2/zf", full.names = TRUE)
+ngs.files <- list.files("./DAB_GATC2/1_ngsfilters/", pattern = ".ngsfilter", full.names = TRUE)
 
 # Name of the file(s) into which the results are to be written. There is one more 
 # possible intermediate file towards the end.
 # Switch between HISEQ1 and HiSEQ2 runs.
-# file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq1.txt"
 # file.called <- "./DAB/data/dab_called_genetic_sex_hiseq1.txt"
 # file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq1_sex.txt"
 
-file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq2.txt"
-file.called <- "./DAB/data/dab_called_genetic_sex_hiseq2.txt"
-file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq2_sex.txt"
+file.called <- "./DAB_GATC2/data/dab_called_genetic_sex_gatc2.txt"
+file.freqs <- "./DAB_GATC2/data/frequency_of_sequences_by_marker_gatc2_sex.txt"
 countTS <- 20 # reads that do not match exact sequence should have this number of reads,
               # otherwise they are discarded
 lowCount <- 100 # if unrecognized as sex sequence and below this threshold, flag as "L"
@@ -74,6 +72,7 @@ system.time(xy <- sapply(xy.file, FUN = function(fl) {
          by = .(Plate)]
   x
 }, simplify = FALSE))
+
 # Combine the result into one data.table and exclude zero counts.
 xy <- rbindlist(xy)
 xy <- xy[Read_Count > 0, ]
