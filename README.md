@@ -1,22 +1,28 @@
 This is how I analyzed NGS data for the `DinAlp bear` project.
 
-1) Create NGS filters. Help yourself with script `batch_create_ngs_filters.R`. Make sure you designate correct folders for aliquot plates.
+1) Create NGS filters. Help yourself with script `batch_create_ngs_filters.R`. Make sure you designate correct folders for aliquot plates. Files are named e.g. `171004_NGS_tiss_A53.xls`. Script (`batch_create_ngs_filters.R`) reads *_A##.xls and extracts aliquote plate number. (see project structure below).
 2) Run the obitools pipeline below. It helps if you have a sufficient number of cores at your disposal. :)
 3) Once you get the `series.tab` files you will be able to process the genotypes in R using `library(fishbone)`* designed for allele calling. See `NGS_pipeline.R`.
 
 * You can install this using `devtools::install_github("romunov/fishbone")`, but you will need the appropriate tool chain.
 
-Files/folders in `/DAB` are:
-* `pars.csv` - list of parameters used for allele calling, see function `callAllele` for all the information
-* `/1_ngsfilters_hiseq1`: ngs filters for hiseq run 1
-* `/2_uniq_tab_hiseq1`: result of obitools pipeline
-* `/3_lib_sample_locus`: final result of obitools pipeline, incl. \*serie.tab files produced by `microsatTabToseries.py` script
-* `/aliquot_plates`: which plates comprise a library and which sample was put into which position
+Files/folders in your project, e.g. `/DAB` are:
+
+* `/0_prep_ngsfiltes`: which plates comprise a library and which sample was put into which position
+  - `171024_PlateNames_gatc_nov_2017.xlsx` file maps aliquot plates to which library it belongs
+  - `/aliquot_plates` folder contains files which map samples to position for each aliquot plate. This file is from a Hamilton robot with programmed routine which outputs a neat file. **Please do not use underscore (`_`) in sample names**
+  - `input_primers_tags.xlsx` file containing primer names and their forward and reverse sequences
+  - `UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx` position of plates and forward/reverse primers in position for the entire library. VERY IMPORTANT FILE, DO NOT MESS IT UP
+* `/1_ngsfilters_hiseq1`: ngs filters for the run
+* `/2_uniq_tab_hiseq1`: result of obitools pipeline (uniq.tab files)
+* `/3_lib_sample_locus`: files produced by `microsatTabToseries.py` script and \*serie.tab files produced by python script `microsatTabToseries.py`
 * `/data`: this is where the genotypes are at before they're shipped off
 
 To determine genetic sex, use script `determine_sex_from_ZF.R` on `*ZF.uniq.tab`. Make sure you correctly set parameters in the INPUT section. Briefly, the algorithm checks for disbalance of X and Y alleles and calles a male or female appropriately. See algorithm details in script comments.
 
 This is the pipeline used to download and sift through the data. Mind you that intermediate files can grow large and may need to be moved or deleted before running the next step.
+
+The current implementation works OK for plates that have not been done in parallel. The only "trick" is to adapt the regular expressions in `NGS_pipeline.R` and `microsatTabExtract.R`.
 
 ```
 Fasteris DinAlpBear HiSeq2
@@ -562,6 +568,7 @@ ngsfilter -t DAB12.ngsfilter -u rawdata_dab_hiseq1-L002-JFV-12.unidentified.fast
 
 # feel free to move/delete unidentified files
 # combine runs L001 and L002
+# this step may not be necessary if your plates have not been run in duplicates
 cat rawdata_L001_JFV-1_hiseq1.filtered.fastq rawdata_L002_JFV-1_hiseq1.filtered.fastq > rawdata_JFV-1.filtered.fastq &
 cat rawdata_L001_JFV-2_hiseq1.filtered.fastq rawdata_L002_JFV-2_hiseq1.filtered.fastq > rawdata_JFV-2.filtered.fastq &
 cat rawdata_L001_JFV-3_hiseq1.filtered.fastq rawdata_L002_JFV-3_hiseq1.filtered.fastq > rawdata_JFV-3.filtered.fastq &
@@ -926,5 +933,15 @@ obigrep -p 'count>1' MICROSAT.PCR_JFV-9_UA_MxRout1_65.uniq.fasta | obiannotate -
 obigrep -p 'count>1' MICROSAT.PCR_JFV-9_UA_MxRout1_67.uniq.fasta | obiannotate -k merged_sample -k count | obiannotate --length | obisort -r -k seq_length | obitab --no-definition --output-seq > MICROSAT.PCR_JFV-9_UA_MxRout1_67.uniq.tab &
 obigrep -p 'count>1' MICROSAT.PCR_JFV-9_UA_MxRout1_68.uniq.fasta | obiannotate -k merged_sample -k count | obiannotate --length | obisort -r -k seq_length | obitab --no-definition --output-seq > MICROSAT.PCR_JFV-9_UA_MxRout1_68.uniq.tab &
 obigrep -p 'count>1' MICROSAT.PCR_JFV-9_UA_MxRout1_ZF.uniq.fasta | obiannotate -k merged_sample -k count | obiannotate --length | obisort -r -k seq_length | obitab --no-definition --output-seq > MICROSAT.PCR_JFV-9_UA_MxRout1_ZF.uniq.tab &
+```
+The result is now many `*.uniq.tab` files. Move them to `2_uniq_tab_hiseq1` folder.
+Next step is to check the first part of `NGS_pipeline.R` to set all appropriate input and output files. You will notice that you will need two extra files in the same position as `NGS_pipeline.R`, namely `microsatTabExtract.R` and `locus_motifs.txt`. The first one extracts samples to tab files and second one holds motifs for specific loci.
+
+You will also need to have some dependencies installed. While `parallel` comes shipped with R, `tidyr`, `data.table` and `fishbone` do not. Install from your favorite repository.
 
 ```
+install.packages(c("tidyr", "data.table"))
+devtools::install_github("romunov/fishbone") # this requires devtools to be installed, along with Rtools if you're on Windows
+```
+
+When you have all this set up, feel free to run the script using `Rscript NGS_pipeline.R`. If everything goes well, you should have a `/data` folder with the final result. If you get any errors, my bet would be on a faulty regular expression.
