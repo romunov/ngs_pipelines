@@ -18,7 +18,7 @@ map.sheet <- "PCR_Plates_4Reps_2Reps"
 # Combination of tags to determine sample position/identity.
 # PP has columns position, slo, PP1, PP2, ... PP8 which designates which position (1-96) holds which forward
 # and reverse tag combination.
-combo.PP <- "./DAB/aliquot_plates/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx"
+combo.PP <- "./DAB_GATC2/0_prep_ngsfiltes/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx"
 
 if (!dir.exists(dir.output)) {
   error("The output folder you specified does not exists. Make sure it exists beforehand running this script.")
@@ -30,7 +30,7 @@ if (!dir.exists(dir.AP)) {
 
 # 1. Load PP and AP data
 # Primer names and forward/reverse sequences.
-primers <- as.data.frame(read_excel("./DAB/aliquot_plates/input_primers_tags.xlsx", sheet = "primers"))
+primers <- as.data.frame(read_excel("./DAB_GATC2/0_prep_ngsfiltes/input_primers_tags.xlsx", sheet = "primers"))
 
 PP <- as.data.frame(read_excel(combo.PP, 
                                sheet = "Tag crossbreeding", skip = 43))
