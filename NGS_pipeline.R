@@ -10,17 +10,16 @@ source("microsatTabExtract.R")
 locus.motifs <- "locus_motifs.txt" # motif represented by each locus
 microsattotab.py <- "microsatTabToseries.py" # a python script which finds "series"
 
-do.chunk.init <- TRUE
+do.chunk.init <- FALSE
 do.chunk1 <- FALSE # create files for each sample/locus using microsatTabExtract
-do.chunk2 <- TRUE # find series using python script
-do.chunk3 <- TRUE # prepare candidate alleles
-do.chunk4 <- TRUE # clean candidate alleles
+do.chunk2 <- FALSE # find series using python script
+do.chunk3 <- FALSE # prepare candidate alleles
+do.chunk4 <- FALSE # clean candidate alleles
 do.chunk5 <- TRUE # call alleles
 
 # for chunks running in parallel, always turn on init chunk to start up workers
 if (do.chunk1) do.chunk.init <- TRUE
 if (do.chunk2) do.chunk.init <- TRUE
-if (do.chunk5) do.chunk.init <- TRUE
 
 #### USER INPUT ####
 # Specify project name.
