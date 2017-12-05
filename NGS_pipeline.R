@@ -1,14 +1,17 @@
-# This is the R part of the pipeline used to analyze NGS data received from Fasteris. Study
+# This is the R part of the pipeline used to analyze NGS data. Study
 # species is brown bear, Ursus arctos.
 
 library(parallel)
 library(tidyr)
 library(data.table)
 
+# Have these files in the "home" folder of the analysis
 source("microsatTabExtract.R")
+locus.motifs <- "locus_motifs.txt" # motif represented by each locus
+microsattotab.py <- "microsatTabToseries.py" # a python script which finds "series"
 
 do.chunk.init <- TRUE
-do.chunk1 <- TRUE # create files for each sample/locus using microsatTabExtract
+do.chunk1 <- FALSE # create files for each sample/locus using microsatTabExtract
 do.chunk2 <- TRUE # find series using python script
 do.chunk3 <- TRUE # prepare candidate alleles
 do.chunk4 <- TRUE # clean candidate alleles
@@ -168,19 +171,20 @@ if (do.chunk2) {
   
   # find files created by microsatTabExtract()
   # NOTICE: ZF locus is excluded from the analysis
-  # NOTICE: copy microsatTabToseries.py to where the uniq.tab files are being processed
   # lsl = library-sample-locus files
   
   oldwd <- getwd()
-  file.copy(from = "microsatTabToseries.py", to = paste(dir.lsl, "microsatTabToseries.py", sep = "/"),
+  # NOTICE: copy microsatTabToseries.py to where the uniq.tab files are being processed
+  file.copy(from = microsattotab.py, to = paste(dir.lsl, "microsatTabToseries.py", sep = "/"),
             overwrite = TRUE)
   
   lsl <- list.files(path = dir.lsl, pattern = "_\\d+\\.uniq\\.tab$")
   # load motif data
-  motif <- read.table("locus_motifs.txt", header = TRUE,
+  motif <- read.table(locus.motifs, header = TRUE,
                       colClasses = c("character", "character"))
   
   message(sprintf("Found %d files to process.", length(lsl)))
+  message("Sample of files:")
   print(head(lsl))
   
   if (!file.exists("microsatTabToseries.py")) stop("microsatTabToseries.py not found")
@@ -341,8 +345,8 @@ if (do.chunk3) {
     # io$lib <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\1", basename(x$files))
     # io$sample <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\2", basename(x$files))
     # io$locus <- gsub("^MICROSAT\\.PCR_(.*)_(.*)_(.*)_(.*)_(\\d+)_serie.tab$", "\\5", basename(x$files))
-    io$position <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\2", io$run)
-    io$run <- gsub("^sample:(.*)_(\\d+)_(P\\d{1})", "\\3", io$run)
+    io$position <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\2", io$run)
+    io$run <- gsub("^sample:(.*)_(\\d+)_(PP\\d{1})", "\\3", io$run)
     # io$allele <- paste(io$seq_length, io$series, sep = "_")
     
     # Notice that `serie` and `seq_length` are no longer included as they are
@@ -380,17 +384,17 @@ if (do.chunk4) {
   # unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
   # ... expecting [1] 1
   
-  # # Standardize loci names
-  # gt.by <- by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
-  #   x <- x[order(x$count_run, decreasing = TRUE), ]
-  #   x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence), 
-  #                                     labels = 1:length(unique(x$sequence))))
-  #   x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
-  #   x[order(x$sample, x$run, rev(x$count_run)), ]
-  # })
-  # 
-  # gt <- rbindlist(gt.by)
-  # rm(gt.by)
+  # Standardize loci names
+  gt.by <- by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
+    x <- x[order(x$count_run, decreasing = TRUE), ]
+    x$new_allele <- as.numeric(factor(x$sequence, levels = unique(x$sequence),
+                                      labels = 1:length(unique(x$sequence))))
+    x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
+    x[order(x$sample, x$run, rev(x$count_run)), ]
+  })
+
+  gt <- rbindlist(gt.by)
+  rm(gt.by)
   
   # feel free to filter out junk
   gt <- gt[gt$count_run > 3, ]
@@ -460,7 +464,7 @@ if (do.chunk5) {
   # 23364:     gaagcaacagggtatagatatatagagatagatagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
   # 23365:             gaagcaacagggtatagatatatagagatagatagatagatagatagatagataaagagatttattataaggaattggctc ggatagca:gtgatctc
   #####
-  message(sprintf("(%s) Chunk5: Begin processing chunk.", Sys.time()))
+  message(sprintf("(%s) Chunk 5: Begin processing chunk.", Sys.time()))
   
   library(fishbone)
   
