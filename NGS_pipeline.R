@@ -372,16 +372,12 @@ if (do.chunk4) {
     require(data.table)
     load(raw.rdata)
   }
-  genotypes <- rbindlist(genotypes)
+  gt <- rbindlist(genotypes)
   
-  # Save blk data into its own data.frame for tidy purposes.
-  # genotypes$sequence <- as.character(genotypes$sequence)
-  gt <- genotypes
-  rm(genotypes)
-  
-  # check if each sequence has only one locus
-  # unique(aggregate(locus ~ sequence, data = gt, FUN = function(x) length(unique(x)))$locus)
-  # ... expecting [1] 1
+  # # uncomment only if lib, position and run are FUBAR
+  # gt$lib <- gsub("(^DAB\\d+)_A\\d+$", "\\1", gt$lib)
+  # gt$position <- gsub("^sample:.*_(\\d{3})_PP\\d$", "\\1", gt$position)
+  # gt$run <- gsub("^sample:.*_(PP\\d)$", "\\1", gt$run)
   
   # Standardize loci names
   gt.by <- by(data = gt, INDICES = list(gt$locus), FUN = function(x) {
@@ -412,12 +408,17 @@ if (do.chunk4) {
   
   # add tag combo
   xy <- sapply(list.files(dir.ngsfilter, pattern = ".ngsfilter", full.names = TRUE),
-               FUN = fread, header = FALSE, colClasses = "character", simplify = FALSE)
+               FUN = function(x) {
+                 out <- fread(x, header = FALSE, colClasses = "character")
+                 out$rn <- gsub("\\.ngsfilter", "", basename(x))
+                 out
+               },
+               simplify = FALSE)
   
   xy <- rbindlist(xy)
   rownames(xy) <- NULL
-  xy <- as.data.table(xy[, c(1, 2, 3)])
-  names(xy) <- c("V1", "V2", "TagCombo")
+  xy <- as.data.table(xy[, c(1, 2, 3, 8)])
+  names(xy) <- c("V1", "V2", "TagCombo", "rn")
   
   # create columns by which to merge
   gt[, fn := sprintf("%s_%s_PP%s", Sample_Name, Position, Plate)]
@@ -425,7 +426,7 @@ if (do.chunk4) {
   # gt[, fn := sprintf("%s_%s_P%s", Sample_Name, Position, Plate)]
   gt[, fl := sprintf(sprintf("UA_MxRout1_%s", Marker))]
   
-  gt <- merge(gt, xy, by.x = c("fn", "fl"), by.y = c("V2", "V1"))
+  gt <- merge(gt, xy, by.x = c("fn", "fl", "Run_Name"), by.y = c("V2", "V1", "rn"))
   gt[, fn := NULL]
   gt[, fl := NULL]
   
@@ -470,8 +471,9 @@ if (do.chunk5) {
   if (!exists("gt")) load(raw.cleaned.rdata)
   
   data(mt) # from fishbone package
-  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt),
-                        by = .(Sample_Name, Marker, Plate)])
+  system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt, verbose = TRUE),
+                        by = .(Sample_Name, Marker, Plate, Run_Name)])
+  save(gt, file = "./DAB_GATC2/data/bleh.RData")
   
   # data.table adds variables used to "by" - here we remove them
   out <- out[, 4:ncol(out)]
