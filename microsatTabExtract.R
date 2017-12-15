@@ -6,10 +6,10 @@
 #' 
 microsatTabExtract <- function(filename, samplename, outdir = ".") {
   xy <- fread(filename, stringsAsFactors = FALSE)
-  
+  browser()
   # prepare library designation
   lib <- gsub("^MICROSAT.*-(\\d+)_.*$", "\\1", basename(filename))
-  lib <- sprintf("DAB%02d", as.numeric(lib))
+  lib <- sprintf("DAB%s", lib)
   
   fileoutname <- sprintf("%s/MICROSAT.PCR_%s_%s_%s.uniq.tab",
                          outdir,
