@@ -146,23 +146,41 @@ sampleMetadata <- function(x) {
 
 #' @param x A data.frame or data.table of called genotypes.
 #' @param ngs A vector of paths to ngs filters.
-findUnamplifiedSamples <- function(x, ngs) {
+#' @param sex Path to data about sex genotypes based on ZF.
+#' 
+findUnamplifiedSamples <- function(x, ngs, sex) {
   libs <- unique(x$Run_Name)
+  zf <- fread(sex, header = TRUE,
+              colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                                numeric = c(2, 3, 6)))
   
-  sapply(libs, FUN = function(y, x, ngs) {
+  sapply(libs, FUN = function(y, x, ngs, zf) {
     onelib <- x[x$Run_Name == y, ]
+    zf <- zf[Run_Name == y, ]
     onengs <- ngs[ngs$lib == y, "path"]
     onengs <- fread(as.character(onengs), header = FALSE)
+
+    onelib <- rbind(onelib, zf)
     
-    browser()
-    # find all samples
+    # find all samples and construct a proper data.frame
     rgx <- "(^.*)_(\\d+)_PP(\\d+)$"
-    ngx <- data.frame(Sample_Name = gsub(rgx, "\\1", onengs$V2),
-               Plate = gsub(rgx, "\\3", onengs$V2),
+    ngx <- data.table(Sample_Name = gsub(rgx, "\\1", onengs$V2),
+               Plate = as.numeric(gsub(rgx, "\\3", onengs$V2)),
                Position = gsub(rgx, "\\2", onengs$V2),
-               Marker = gsub("UA_MxRout1_(.*)$", "\\1", onengs$V1))
+               Marker = gsub("UA_MxRout1_(.*)$", "\\1", onengs$V1),
+               Run_Name = y,
+               TagCombo = onengs$V3,
+               stringsAsFactors = FALSE)
     
-  
-    }, x = x, ngs = ngs)
+    # find all unique samples that have been amplified
+    findups <- onelib[, .(Sample_Name, Plate, Position, Marker, Run_Name, TagCombo)]
+    onelib <- onelib[!duplicated(findups), ]
+    
+    # append all relevant columns and extract only those that have no reads
+    out <- merge(ngx, onelib, sort = FALSE, all = TRUE)
+    out <- out[is.na(Read_Count), names(onelib), with = FALSE]
+    out
+    
+    }, x = x, ngs = ngs, zf = zf, simplify = FALSE)
   
 }
