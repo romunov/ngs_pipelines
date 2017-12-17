@@ -143,3 +143,26 @@ sampleMetadata <- function(x) {
     )
   xy
 }
+
+#' @param x A data.frame or data.table of called genotypes.
+#' @param ngs A vector of paths to ngs filters.
+findUnamplifiedSamples <- function(x, ngs) {
+  libs <- unique(x$Run_Name)
+  
+  sapply(libs, FUN = function(y, x, ngs) {
+    onelib <- x[x$Run_Name == y, ]
+    onengs <- ngs[ngs$lib == y, "path"]
+    onengs <- fread(as.character(onengs), header = FALSE)
+    
+    browser()
+    # find all samples
+    rgx <- "(^.*)_(\\d+)_PP(\\d+)$"
+    ngx <- data.frame(Sample_Name = gsub(rgx, "\\1", onengs$V2),
+               Plate = gsub(rgx, "\\3", onengs$V2),
+               Position = gsub(rgx, "\\2", onengs$V2),
+               Marker = gsub("UA_MxRout1_(.*)$", "\\1", onengs$V1))
+    
+  
+    }, x = x, ngs = ngs)
+  
+}
