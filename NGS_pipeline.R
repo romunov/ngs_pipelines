@@ -10,11 +10,11 @@ source("microsatTabExtract.R")
 locus.motifs <- "locus_motifs.txt" # motif represented by each locus
 microsattotab.py <- "microsatTabToseries.py" # a python script which finds "series"
 
-do.chunk.init <- TRUE
-do.chunk1 <- TRUE # create files for each sample/locus using microsatTabExtract
-do.chunk2 <- TRUE # find series using python script
-do.chunk3 <- TRUE # prepare candidate alleles
-do.chunk4 <- TRUE # clean candidate alleles
+do.chunk.init <- FALSE # this will be set to TRUE if needed by specific chunk
+do.chunk1 <- FALSE # create files for each sample/locus using microsatTabExtract
+do.chunk2 <- FALSE # find series using python script
+do.chunk3 <- FALSE # prepare candidate alleles
+do.chunk4 <- FALSE # clean candidate alleles
 do.chunk5 <- TRUE # call alleles
 
 # for chunks running in parallel, always turn on init chunk to start up workers
@@ -23,12 +23,13 @@ if (do.chunk2) do.chunk.init <- TRUE
 
 #### USER INPUT ####
 # Specify project name.
-proj.name <- "DAB_GATC2"
+proj.name <- "DAB_GATC3"
 # Specify output file which will be placed inside /data of the project folder.
-raw.rdata <- "raw_genotypes_dab_gatc2_dab29.RData"
-raw.cleaned.rdata <- "genotypes_dab_gatc2_cleaned_dab29.RData"
-raw.final <- "final_dab_gatc2_dab29.RData"
-raw.final.txt <- "dab_gatc2_genotypesdab29.txt"
+raw.rdata <- "raw_genotypes_dab_gatc3.RData"
+raw.cleaned.rdata <- "genotypes_dab_gatc3_cleaned.RData"
+raw.final <- "final_dab_gatc3.RData"
+raw.final.txt <- "dab_gatc3_genotypes.txt"
+
 # specify (intermediate() folder names.
 dir.ngsfilter <- "1_ngsfilters"
 dir.uniq.tab <- "2_uniq_tab"
@@ -388,7 +389,7 @@ if (do.chunk4) {
     x$new_allele <- paste(gsub("^(\\d+)_\\d$", "\\1", x$allele), x$new_allele, sep = "_")
     x[order(x$sample, x$run, rev(x$count_run)), ]
   })
-  dir.ngsfilter <- "c:/users/romunov/Documents/workspace/"
+  # dir.ngsfilter <- "c:/users/romunov/Documents/workspace/"
   gt <- rbindlist(gt.by)
   rm(gt.by)
   
@@ -474,7 +475,6 @@ if (do.chunk5) {
   data(mt) # from fishbone package
   system.time(out <- gt[, callAllele(c(.BY, .SD), tbase = mt, verbose = TRUE),
                         by = .(Sample_Name, Marker, Plate, Run_Name)])
-  save(gt, file = "./DAB_GATC2/data/final_dab_gatc2_dab29_allcols.RData")
   
   # data.table adds variables used to "by" - here we remove them
   out <- out[, 5:ncol(out)]

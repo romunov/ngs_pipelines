@@ -8,11 +8,11 @@
 
 library(readxl)
 
-dir.AP <- "./DAB_GATC2/0_prep_ngsfiltes/aliquot_plates" # folder where aliquote plates are located
-dir.output <- "./DAB_GATC2/1_ngsfilters" # no trailing slash, where files are to be stored
+dir.AP <- "./april_2018/0_prep_ngsfilters/aliquot_plates" # folder where aliquote plates are located
+dir.output <- "./april_2018/1_ngsfilters" # no trailing slash, where files are to be stored
 
 # This file contains data which maps which aliquot plate comes from which library.
-map.AP <- "./DAB_GATC2/0_prep_ngsfiltes/171024_PlateNames_gatc_nov_2017.xlsx"
+map.AP <- "./april_2018/0_prep_ngsfilters/20180226_PlateNames_GATC.xlsx"
 map.sheet <- "PCR_Plates_4Reps_2Reps"
 
 # Combination of tags to determine sample position/identity.
@@ -21,11 +21,13 @@ map.sheet <- "PCR_Plates_4Reps_2Reps"
 combo.PP <- "./DAB_GATC2/0_prep_ngsfiltes/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx"
 
 if (!dir.exists(dir.output)) {
-  error("The output folder you specified does not exists. Make sure it exists beforehand running this script.")
+  stop(sprintf("The output folder %s you specified does not exists. 
+               Make sure it exists beforehand running this script.", dir.output))
 }
 
 if (!dir.exists(dir.AP)) {
-  error("The folder which should hold aliquot plates does't appear to be there. Please check your paths.")
+  stop(sprintf("The folder which should hold aliquot plates (%s) does't 
+       appear to be there. Please check your paths.", dir.AP))
 }
 
 # 1. Load PP and AP data
@@ -36,7 +38,7 @@ PP <- as.data.frame(read_excel(combo.PP,
                                sheet = "Tag crossbreeding", skip = 43))
 
 if (nrow(PP) == 0) {
-  error("It doesn't appear you've imported any primer plates. Please make sure the files are in place.")
+  stop("It doesn't appear you've imported any primer plates. Please make sure the files are in place.")
 }
 
 # AP will hold links to files to aliquot plates. Data is arranged in columns. Each row holds its own
@@ -45,7 +47,7 @@ AP <- data.frame(location = list.files(dir.AP, pattern = "_A\\d+\\.xls$", full.n
 AP$name <- gsub("^.*(A\\d+)\\.xls$", "\\1", AP$location)
 
 if (nrow(AP) == 0) {
-  error("You have imported primer plates, but filtering failed. Make sure the regex expression in the above lines is correct.")
+  stop("You have imported primer plates, but filtering failed. Make sure the regex expression in the above lines is correct.")
 }
 
 # 2. Find which AP is added to which PP.
