@@ -7,11 +7,11 @@ source("custom_functions.R")
 
 #### INPUT ####
 # name project folder name
-proj.name <- "DAB_GATC3"
+proj.name <- "FCC1"
 # where called sex will be stored
-called.sex <- "dab_called_genetic_sex_gatc3.txt"
+called.sex <- "fcc1_called_genetic_sex.txt"
 # frequency of sequences by marker
-freq.by.marker <- "frequency_of_sequences_by_marker_gatc3_sex.txt"
+freq.by.marker <- "frequency_of_sequences_by_marker_fcc1_sex.txt"
 
 # fetch files
 xy.file <- list.files(sprintf("./%s/3_lib_sample_locus", proj.name), pattern = ".*_ZF\\.uniq\\.tab$", full.names = TRUE)
