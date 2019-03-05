@@ -197,3 +197,36 @@ out <- rbindlist(list(outngs1, outngs2))
 fwrite(out, file = "./data/sample_positions_DAB01-DAB24.txt", sep = "\t")
 ```
 
+# Find bad samples for hiseq1
+```{r}
+ngslib1 <- data.frame(
+  path = ngs1, 
+  lib = sprintf("DAB%s", gsub("^DAB(\\d+)\\.ngsfilter$", "\\1", basename(ngs1))))
+
+dud <- findUnamplifiedSamples(x = xy1, ngs = ngslib1, sex = "./data/dab_called_genetic_sex_hiseq1.txt")
+
+dud.nrow <- sapply(dud, nrow)
+dud.nrow[order(names(dud.nrow))]
+
+dud <- rbindlist(dud)
+dud$length <- -1
+dud$Sequence <- "-1"
+fwrite(dud, file = "./data/bad_samples_hiseq1.txt", sep = "\t")
+```
+
+# Find bad samples for hiseq2
+```{r}
+ngslib2 <- data.frame(
+  path = ngs2, 
+  lib = sprintf("DAB%s", gsub("^DAB(\\d+)\\.ngsfilter$", "\\1", basename(ngs2))))
+
+dud <- findUnamplifiedSamples(x = xy2, ngs = ngslib2, sex = "./data/dab_called_genetic_sex_hiseq2.txt")
+
+dud.nrow <- sapply(dud, nrow)
+dud.nrow[order(names(dud.nrow))]
+
+dud <- rbindlist(dud)
+dud$length <- -1
+dud$Sequence <- "-1"
+fwrite(dud, file = "./data/bad_samples_hiseq2.txt", sep = "\t")
+```

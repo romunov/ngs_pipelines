@@ -1,0 +1,140 @@
+---
+title: "Exploring NGS data - preliminary!"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup_chunk}
+library(data.table)
+library(ggplot2)
+library(gridExtra)
+
+source("../custom_functions.R")
+```
+
+Data comes from a pipeline as described in the supplemental material from de Barba et al. (2016). It is from two HISEQ Illumina runs so it comes in two text files. The data is stored in `/DAB/data/` under `dab_hiseq1_genotypes.txt` and `dab_hiseq2_genotypes.txt`. A total of 2x 12 libraries have been analyzed.
+
+```{r}
+xy <- fread("./data/dab_gatc2_fixed_DAB29_plates3456_genotypes.txt", stringsAsFactors = FALSE,
+             colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                               numeric = c(2, 3, 6)))
+
+ngs <- list.files("./1_ngsfilters/", pattern = ".ngsfilter", full.names = TRUE)
+```
+
+
+Number of unique samples is `r length(unique(xy$Sample_Name))`.
+
+## Success of PCR
+Has PCR succeeded. The data represents the number of sequences per plate within a library.
+
+```{r}
+sapply(sort(unique(xy$Run_Name)), FUN = function(i, x) {
+  table(x[Run_Name == i & Plate %in% c(1, 8, 2, 7, 3, 6, 4, 5), ][order(Sample_Name, Marker, Plate, length)][, Plate])
+}, x = xy)
+```
+
+## Negative controls
+Negative control samples are marked `AK` for tissue samples and `AC` for non-invasive samples. Some have designation `NeKo*`.
+
+```{r}
+xy[grepl("(^AC\\..*$|^AK\\..*$|NeKo.*$)", Sample_Name), ][order(Sequence, Run_Name, Sample_Name, Plate, Marker)]
+```
+
+
+## Find blanks
+List all samples which have a word `"blank"` in them.
+
+```{r}
+xy[grepl("blank", Sample_Name) | grepl("^A\\d+_B\\d+$", Sample_Name), ]
+```
+
+
+## Number of reads per position
+These figures should give you a broad idea of how many reads each position got. This may indicate weak samples. Also notice if there are reads in positions designated as blanks.
+
+Results should be in `"./data/countplate"`
+```{r eval = FALSE}
+showSumsByLibrary(xy, loc = "./data/", pos = "by_plate")
+```
+
+## Sequence frequency
+
+For each locus, find sequences by frequency for two HISEQ runs.
+
+```{r}
+freq.of.seq.by.marker <- xy[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
+fwrite(freq.of.seq.by.marker, file = "./data/frequency_of_sequences_by_marker_gatc2.txt", sep = "\t")
+freq.of.seq.by.marker
+```
+
+## Distribution of flags
+
+```{r}
+table(xy$flag)
+```
+
+## Alleles and stutters
+See the distribution of number of reads of alleles and stutters, drawn by marker.
+### Alleles
+```{r fig.width = 8, fig.height = 12}
+ggplot(xy[called == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count") +
+  scale_x_continuous(limits = c(0, quantile(xy$Read_Count[xy$called == TRUE], 0.99))) +
+  facet_wrap(~ Marker, ncol = 2)
+```
+### Stutters
+```{r fig.width = 8, fig.height = 12}
+ggplot(xy[stutter == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count") +
+  scale_x_continuous(limits = c(0, quantile(xy$Read_Count[xy$stutter == TRUE], 0.99)),
+                     breaks = c(0, 500, 1000)) +
+  scale_y_continuous(breaks = c(0, 6000)) +
+  facet_wrap(~ Marker, ncol = 2)
+```
+
+## Number of replications
+
+To calculate quality index, number of replications is essential.
+```{r}
+fwrite(countSampleLocusRepeats(ngs = ngs), file = "./data/dab_number_of_repeats_gatc2.txt", sep = "\t")
+```
+
+## Create a list of samples
+Map samples to their position in library. This will help us know which samples worked and which did not.
+
+```{r}
+out <- sapply(ngs, FUN = sampleMetadata, simplify = FALSE)
+out <- rbindlist(out)
+libnums <- as.numeric(gsub("^DAB(\\d+)$", "\\1", out$Run_Name))
+out$Run_Name <- sprintf("DAB%s", libnums)
+fwrite(out, file = "./data/sample_positions_DAB25-DAB35.txt", sep = "\t")
+```
+
+## Find samples which have not been amplified. Output is for sample * marker * plate for each library.
+```{r}
+ngslib <- data.frame(
+  path = ngs, 
+  lib = sprintf("DAB%s", as.numeric(gsub("^DAB(\\d+)\\.ngsfilter$", "\\1", basename(ngs)))))
+
+dud <- findUnamplifiedSamples(x = xy, ngs = ngslib, sex = "./data/dab_called_genetic_sex_gatc2.txt")
+
+dud.nrow <- sapply(dud, nrow)
+dud.nrow[order(names(dud.nrow))]
+
+dud <- rbindlist(dud)
+dud$length <- -1
+dud$Sequence <- "-1"
+fwrite(dud, file = "./data/bad_samples_gatc2.txt", sep = "\t")
+```
+
+```{r}
+sessionInfo()
+```

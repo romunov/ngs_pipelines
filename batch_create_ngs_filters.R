@@ -8,31 +8,54 @@
 
 library(readxl)
 
-dir.AP <- "./DAB/aliquot_plates/HiSEQ_run2" # folder where aliquote plates are located
-dir.output <- "./DAB/1_ngsfilters_hiseq2" # no trailing slash, where files are to be stored
+project <- "FCC2"
+dir.AP <- sprintf("./%s/0_prep_ngsfilters/aliquot_plates", project) # folder where aliquote plates are located
+dir.output <- sprintf("./%s/1_ngsfilters", project) # no trailing slash, where files are to be stored
 
-# 1. Load PP and AP data
-# Primer names and forward/reverse sequences.
-primers <- as.data.frame(read_excel("./DAB/aliquot_plates/input_primers_tags.xlsx", sheet = "primers"))
+# This file contains data which maps which aliquot plate comes from which library.
+map.AP <- sprintf("./%s/0_prep_ngsfilters/190118_plate_names.xlsx", project)
+map.sheet <- "PCR_Plates_4Reps_2Reps"
 
 # Combination of tags to determine sample position/identity.
 # PP has columns position, slo, PP1, PP2, ... PP8 which designates which position (1-96) holds which forward
 # and reverse tag combination.
-PP <- as.data.frame(read_excel("./DAB/aliquot_plates/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx", 
+combo.PP <- sprintf("./%s/0_prep_ngsfilters/UrsusNGSPrimersCrosbreeding.Ljubljana.18Jul2017.xlsx", project)
+
+if (!dir.exists(dir.output)) {
+  stop(sprintf("The output folder %s you specified does not exists. 
+               Make sure it exists beforehand running this script.", dir.output))
+}
+
+if (!dir.exists(dir.AP)) {
+  stop(sprintf("The folder which should hold aliquot plates (%s) does't 
+       appear to be there. Please check your paths.", dir.AP))
+}
+
+# 1. Load PP and AP data
+# Primer names and forward/reverse sequences.
+primers <- as.data.frame(read_excel(sprintf("./%s/0_prep_ngsfilters/input_primers_tags.xlsx", project), sheet = "primers"))
+
+PP <- as.data.frame(read_excel(combo.PP, 
                                sheet = "Tag crossbreeding", skip = 43))
+
+if (nrow(PP) == 0) {
+  stop("It doesn't appear you've imported any primer plates. Please make sure the files are in place.")
+}
 
 # AP will hold links to files to aliquot plates. Data is arranged in columns. Each row holds its own
 # sample (name) which will be used to construct .ngsfilter.
-AP <- data.frame(location = list.files(dir.AP, pattern = "_DAB_A\\d+\\.xls$", full.names = TRUE))
-AP$name <- gsub("^.*(A\\d+)\\.xls$", "\\1", AP$location)
+AP <- data.frame(location = list.files(dir.AP, pattern = "_[AB]\\d+\\.xlsx$", full.names = TRUE))
+AP$name <- gsub("^.*([AB]\\d+)\\.xls[x]$", "\\1", AP$location)
+
+if (nrow(AP) == 0) {
+  stop("You have imported primer plates, but filtering failed. Make sure the regex expression in the above lines is correct.")
+}
 
 # 2. Find which AP is added to which PP.
-# This file contains data which maps which aliquot plate comes from which library.
-pa.loc <- as.data.frame(read_excel("./DAB/aliquot_plates/NGS.Plates.Barcodes.DAB2017.Final.xlsx", 
-                                   sheet = "PCR_Plates_4Reps"))
+pa.loc <- as.data.frame(read_excel(map.AP, sheet = map.sheet))
 
 # select which libraries you wish to run through this script
-pa.loc <- droplevels(pa.loc[pa.loc$Library_BC %in% sprintf("DAB%02d", 13:24, sep = ""), ])
+# pa.loc <- droplevels(pa.loc[pa.loc$Library_BC %in% sprintf("DAB%02d", 13:24, sep = ""), ])
 
 pa.loc <- split(pa.loc, f = pa.loc$Library_BC)
 
@@ -66,6 +89,7 @@ out <- sapply(pa.loc, FUN = function(x, PP, AP, primers, outloc = dir.output) {
   }, PP = PP, AP = AP, primers = primers, simplify = FALSE)
   
   out <- do.call(rbind, out)
+  
   write.table(out, file = sprintf("%s/%s.ngsfilter", outloc, unique(x$Library_BC)), row.names = FALSE,
               col.names = FALSE, quote = FALSE, sep = "\t", fileEncoding = "UTF-8")
   out

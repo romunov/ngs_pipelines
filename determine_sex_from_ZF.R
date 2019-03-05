@@ -6,28 +6,35 @@ library(data.table)
 source("custom_functions.R")
 
 #### INPUT ####
-# Point this line to the folder where .uniqe.tab files of ZF are located.
-# xy.file <- list.files("./DAB/zf_hiseq1/", full.names = TRUE)
-# ngs.files <- list.files("./DAB/1_ngsfilters_hiseq1/", pattern = ".ngsfilter", full.names = TRUE)
-xy.file <- list.files("./DAB/zf_hiseq2/", full.names = TRUE)
-ngs.files <- list.files("./DAB/1_ngsfilters_hiseq2/", pattern = ".ngsfilter", full.names = TRUE)
+# name project folder name
+proj.name <- "FCC1"
+# where called sex will be stored
+called.sex <- "fcc1_called_genetic_sex.txt"
+# frequency of sequences by marker
+freq.by.marker <- "frequency_of_sequences_by_marker_fcc1_sex.txt"
+
+# fetch files
+xy.file <- list.files(sprintf("./%s/3_lib_sample_locus", proj.name), pattern = ".*_ZF\\.uniq\\.tab$", full.names = TRUE)
+stopifnot(length(xy.file) > 0)
+message(sprintf("Found %s ZF tab files.", length(xy.file)))
+
+ngs.files <- list.files(sprintf("./%s/1_ngsfilters", proj.name), pattern = ".ngsfilter", full.names = TRUE)
+stopifnot(length(ngs.files) > 0)
+
+message(sprintf("Found filters %s", ngs.files))
 
 # Name of the file(s) into which the results are to be written. There is one more 
 # possible intermediate file towards the end.
-# Switch between HISEQ1 and HiSEQ2 runs.
-# file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq1.txt"
-# file.called <- "./DAB/data/dab_called_genetic_sex_hiseq1.txt"
-# file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq1_sex.txt"
 
-file.out.seq <- "./DAB/data/dab_genetic_sex_with_sequence_hiseq2.txt"
-file.called <- "./DAB/data/dab_called_genetic_sex_hiseq2.txt"
-file.freqs <- "./DAB/data/frequency_of_sequences_by_marker_hiseq2_sex.txt"
 countTS <- 20 # reads that do not match exact sequence should have this number of reads,
               # otherwise they are discarded
 lowCount <- 100 # if unrecognized as sex sequence and below this threshold, flag as "L"
 junkTS <- 0.15 # when scanning for junk, if a sequence is less than this of max sequence, discard
 dbTS <- 0.5 # if sequence is below dbTS relative to max sequence, flag as disbalanced
 #### INPUT ####
+
+file.called <- sprintf("./%s/data/%s", proj.name, called.sex)
+file.freqs <- sprintf("./%s/data/%s", proj.name, freq.by.marker)
 
 # Exact sequences from X and Y chromosomes
 seqUAX <- "ttgaatcgccaccttttggcggtccacagcaagaactttcctcatatttgtgtggagtgcggtaaaggttttcgtcacccgtcagagctcaaaaagcacatgcg"
@@ -60,6 +67,7 @@ system.time(xy <- sapply(xy.file, FUN = function(fl) {
   x[, Plate := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\3", Sample_Name)]
   x[, Sample_Name := gsub("^sample:(.*)_(\\d+)_PP(\\d+)$", "\\1", Sample_Name)]
   x[, Run_Name := gsub("^.*_(DAB\\d+)_.*$", "\\1", basename(fl))]
+  # x[, Run_Name := sprintf("DAB%s", gsub("^MICROSAT\\.PCR-(\\d+)_.*$", "\\1", basename(fl)))]
   x[, Marker := "ZF"]
   x[, called := TRUE]
   x[, flag := ""]
@@ -74,6 +82,7 @@ system.time(xy <- sapply(xy.file, FUN = function(fl) {
          by = .(Plate)]
   x
 }, simplify = FALSE))
+
 # Combine the result into one data.table and exclude zero counts.
 xy <- rbindlist(xy)
 xy <- xy[Read_Count > 0, ]
@@ -110,7 +119,7 @@ sexy[!(Sequence %in% uaxy) & Read_Count <  lowCount, flag := paste(flag, "L", se
 
 # clean based on function cleanZF
 sps <- split(sexy, f = list(sexy$Sample_Name, sexy$Plate))
-system.time(spsclean <- sapply(sps, FUN = cleanZF, ts = junkTS, db = dbTS, simplify = FALSE))
+spsclean <- sapply(sps, FUN = cleanZF, ts = junkTS, db = dbTS, simplify = FALSE)
 spsclean <- rbindlist(spsclean)
 spsclean[Sample_Name %in% sample(spsclean$Sample_Name, 1), -c("Sequence", "TagCombo")]
 
@@ -121,3 +130,5 @@ fwrite(freq.of.seq.by.marker, file = file.freqs, sep = "\t")
 
 # number of flagged samples:
 spsclean[, .(numsamples = length(unique(Sample_Name))), by = .(flag)]
+
+message("Done.")

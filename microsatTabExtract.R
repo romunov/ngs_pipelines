@@ -6,17 +6,17 @@
 #' 
 microsatTabExtract <- function(filename, samplename, outdir = ".") {
   xy <- fread(filename, stringsAsFactors = FALSE)
-  
+
   # prepare library designation
-  lib <- gsub("^MICROSAT.*_JFV-(\\d+)_.*$", "\\1", basename(filename))
-  lib <- sprintf("DAB%02d", as.numeric(lib))
+  lib <- gsub("^MICROSAT.*-(\\d+)_.*$", "\\1", basename(filename))
+  lib <- sprintf("DAB%s", lib)
   
   fileoutname <- sprintf("%s/MICROSAT.PCR_%s_%s_%s.uniq.tab",
                          outdir,
                          lib,
                          samplename,
                          # extract locus name
-                         gsub("^MICROSAT\\.PCR_.*_([[:alnum:]]+)\\.uniq\\.tab$", "\\1", basename(filename)))
+                         gsub("^MICROSAT\\.PCR.*_([[:alnum:]]+)\\.uniq\\.tab$", "\\1", basename(filename)))
 
   # From a file which holds data for all samples and all replications, extract only the desired file.
   samcols <- colnames(xy)[grepl(samplename, colnames(xy))]

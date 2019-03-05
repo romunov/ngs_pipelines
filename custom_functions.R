@@ -16,7 +16,40 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
   mcp <- mc[, .(mean.count = sum(Read_Count, na.rm = TRUE)), by = .(Sample_Name, Run_Name, Plate, Position)]
   
   out <- sapply(split(mcp, f = list(mcp$Run_Name)), FUN = function(x) {
-    out <- sapply(split(x, f = x$Plate), FUN = function(y) {
+    xy <- split(x, f = x$Plate)
+    
+    # In this chunk we check the existance of every plate. If one is missing, we
+    # put an NA value in its stead.
+    platenames <- sapply(xy, FUN = function(m) unique(m$Plate))
+    names(xy) <- platenames
+    allplates <- vector("list", 8)
+    names(allplates) <- platenames
+    
+    for (i in 1:8) {
+      tmp <- xy[[as.character(i)]]
+      # If a plate is missing, add NA to the entry
+      if (is.null(tmp)) {
+        allplates[[i]] <- as.character(i)
+      } else {
+        allplates[[i]] <- tmp
+      }
+      rm(tmp)  # this will make sure things are clean once loop is finished
+    }
+    
+    out <- sapply(allplates, FUN = function(y) {
+      if (length(y) == 1 & is.character(y)) {
+        # If there is no data for a certain plate, add blank plate.
+        blankpage <- ggplot() +
+          geom_text(aes(x = 0.5, y = 0.5), label = "No data", size = 24) +
+          theme_bw() +
+          ggtitle(y) +
+          geom_blank() +
+          scale_x_continuous(breaks = seq(0, 1, length.out = 12), labels = 1:12) +
+          scale_y_continuous(breaks = seq(0, 1, length.out = 8), labels = rev(LETTERS[1:8])) +
+          theme(axis.title = element_blank(), panel.grid.minor = element_blank())
+        
+        return(blankpage)
+      }
       # create a vector and add data for correct positions
       # this is necessary to preserve missing positions
       y$xpos <- as.numeric(y$Position)
@@ -94,12 +127,11 @@ showSumsByLibrary <- function(mc, loc = "./", pos = c("by_plate", "by_sample")) 
 #' with the highest number of reads in one sample * plate combination.
 
 cleanZF <- function(fb, ts, db) {
-  # browser()
   if (nrow(fb) == 0) return(NULL)
   # omit all sequences that do not reach ts% of the highest read.  
   lvls <- fb$Read_Count/max(fb$Read_Count)
   fb <- fb[lvls > ts, ]
- 
+  
   # if an allele is significantly below a db threshold, flag it as disbalanced
   lvls <- fb$Read_Count/max(fb$Read_Count)
   fb[lvls < db, ]$flag <- paste(fb[lvls < db, ]$flag, "D", sep = "")
@@ -140,6 +172,47 @@ sampleMetadata <- function(x) {
     length = NA,
     Position = gsub(ptn, "\\2", lb[, V2]),
     TagCombo = lb[, V3]
-    )
+  )
   xy
+}
+
+#' @param x A data.frame or data.table of called genotypes.
+#' @param ngs A vector of paths to ngs filters.
+#' @param sex Path to data about sex genotypes based on ZF.
+#' 
+findUnamplifiedSamples <- function(x, ngs, sex) {
+  libs <- unique(x$Run_Name)
+  zf <- fread(sex, header = TRUE,
+              colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                                numeric = c(2, 3, 6)))
+  
+  sapply(libs, FUN = function(y, x, ngs, zf) {
+    onelib <- x[x$Run_Name == y, ]
+    zf <- zf[Run_Name == y, ]
+    onengs <- ngs[ngs$lib == y, "path"]
+    onengs <- fread(as.character(onengs), header = FALSE)
+    
+    onelib <- rbind(onelib, zf)
+    
+    # find all samples and construct a proper data.frame
+    rgx <- "(^.*)_(\\d+)_PP(\\d+)$"
+    ngx <- data.table(Sample_Name = gsub(rgx, "\\1", onengs$V2),
+                      Plate = as.numeric(gsub(rgx, "\\3", onengs$V2)),
+                      Position = gsub(rgx, "\\2", onengs$V2),
+                      Marker = gsub("UA_MxRout1_(.*)$", "\\1", onengs$V1),
+                      Run_Name = y,
+                      TagCombo = onengs$V3,
+                      stringsAsFactors = FALSE)
+    
+    # find all unique samples that have been amplified
+    findups <- onelib[, .(Sample_Name, Plate, Position, Marker, Run_Name, TagCombo)]
+    onelib <- onelib[!duplicated(findups), ]
+    
+    # append all relevant columns and extract only those that have no reads
+    out <- merge(ngx, onelib, sort = FALSE, all = TRUE)
+    out <- out[is.na(Read_Count), names(onelib), with = FALSE]
+    out
+    
+  }, x = x, ngs = ngs, zf = zf, simplify = FALSE)
+  
 }
