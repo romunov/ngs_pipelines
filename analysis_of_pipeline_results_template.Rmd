@@ -1,0 +1,164 @@
+---
+title: "[FCC2] diagnostics"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup_chunk}
+library(data.table)
+library(ggplot2)
+library(gridExtra)
+
+source("../custom_functions.R")
+```
+
+```{r init_files}
+proj <- ""  # add project (folder) name here
+genotypes <- sprintf("./data/%s_genotypes.txt", proj)  # result of chunk 5
+# results of the analysis, will be stored under ./data
+samples <- sprintf("%s_sample_positions.txt", proj) 
+num.repeats <- sprintf("%s_number_of_repeats.txt", proj)
+sex.data <- sprintf("%s_called_genetic_sex.txt", proj)
+bad.samples <- sprintf("%s_bad_samples.txt", proj)
+freq.seq.by.marker <- sprintf("%s_frequency_of_sequences_by_marker.txt", proj)
+```
+
+Data comes from a pipeline as described in the supplemental material from De Barba et al. (2016). It is from GATC Illumina runs and stored in `/DAB_GATC3/data/`.
+
+```{r}
+xy1 <- fread(genotypes, stringsAsFactors = FALSE,
+             colClasses = list(character = c(1, 4, 5, 7, 9, 11, 12),
+                               numeric = c(2, 3, 6)))
+
+ngs1 <- list.files("./1_ngsfilters", pattern = ".ngsfilter", full.names = TRUE)
+libnum <- unique(xy1$Run_Name)
+libnum <- gsub("DAB", "", libnum)
+
+for (i in 1:length(ngs1)) {
+  # Check if any of the library numbers appear in the ngsfilter name.
+  lib.detected <- any(sapply(unique(libnum), grepl, x = ngs1[i]))
+  # If library is not detected, remove it from ngs filters
+  if (!lib.detected) {
+    message(sprintf("Library %s not detected, excluded from the analysis.", ngs1[i]))
+    ngs1[i] <- NA
+  }
+}
+
+ngs1 <- na.omit(ngs1)
+```
+
+
+Number of unique samples  is `r length(unique(xy1$Sample_Name))`.
+
+## Success of PCR
+Has PCR succeeded. The data represents the number of sequences per plate. Plates are grouped together so that these plates represent four repeats of the same sample.
+
+Plates 3, 4, 5, 6.
+```{r}
+sapply(sort(unique(xy1$Run_Name)), FUN = function(i, x){
+  table(x[Run_Name == i & Plate %in% c(3, 4, 5, 6), ][order(Sample_Name, Marker, Plate, length)][, Plate])
+}, x = xy1)
+```
+
+And plates 1, 2, 7 and 8.
+```{r}
+sapply(sort(unique(xy1$Run_Name)), FUN = function(i, x){
+  table(x[Run_Name == i & Plate %in% c(1, 2, 7, 8), ][order(Sample_Name, Marker, Plate, length)][, Plate])
+}, x = xy1)
+```
+
+## Negative controls
+Negative control samples are marked `AK` for tissue samples and `AC` for non-invasive samples. Some have designation `NeKo*`.
+
+```{r}
+xy1[grepl("(^AC\\..*$|^AK\\..*$|NeKo.*$)", Sample_Name), ][order(Sequence, Run_Name, Sample_Name, Plate, Marker)]
+```
+
+## Find blanks
+
+List all samples which have a word `"blank"` in them.
+
+```{r}
+xy1[grepl("blank", Sample_Name), ]
+```
+
+## Number of reads per position
+These figures should give you a broad idea of how many reads each position got. This may indicate weak samples. Also notice if there are reads in positions designated as blanks.
+
+```{r echo = FALSE}
+showSumsByLibrary(xy1, loc = "./data/", pos = "by_sample")
+```
+
+## Sequence frequency
+For each locus, find sequences by frequency for two HISEQ runs.
+
+```{r}
+freq.of.seq.by.marker <- xy1[, .N, by = .(Marker, Sequence)][order(-Marker, N, decreasing = TRUE), .(Marker, N, Sequence)]
+fwrite(freq.of.seq.by.marker, file = sprintf("./data/%s", freq.seq.by.marker), sep = "\t")
+freq.of.seq.by.marker
+```
+
+## Distribution of flags
+```{r}
+table(xy1$flag)
+```
+
+## Alleles and stutters
+See the distribution of number of reads of alleles and stutters, drawn by marker.
+### Alleles
+```{r fig.width = 8, fig.height = 12}
+ggplot(xy1[called == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count") +
+  scale_x_continuous(limits = c(0, quantile(xy1$Read_Count[xy1$called == TRUE], 0.99))) +
+  facet_wrap(~ Marker, ncol = 2)
+```
+### Stutters
+```{r fig.width = 8, fig.height = 12}
+pxy1 <- ggplot(xy1[stutter == TRUE], aes(x = Read_Count)) +
+  geom_histogram() +
+  xlab("Read count HISEQ1") +
+  scale_x_continuous(limits = c(0, quantile(xy1$Read_Count[xy1$stutter == TRUE], 0.99)),
+                     breaks = c(0, 500, 1000)) +
+  scale_y_continuous(breaks = c(0, 6000)) +
+  facet_wrap(~ Marker, ncol = 2)
+grid.arrange(pxy1, ncol = 1)
+```
+
+## Number of replications
+
+To calculate quality index, number of replications is essential.
+```{r}
+fwrite(countSampleLocusRepeats(ngs = ngs1), file = sprintf("./data/%s", num.repeats), sep = "\t")
+```
+
+## Create a list of samples
+Map samples to their position in library. This will help us know which samples worked and which did not.
+
+```{r}
+outngs1 <- sapply(ngs1, FUN = sampleMetadata, simplify = FALSE)
+outngs1 <- rbindlist(outngs1)
+fwrite(outngs1, file = sprintf("./data/%s", samples), sep = "\t")
+```
+
+# Find bad samples for hiseq1
+```{r}
+ngslib1 <- data.frame(
+  path = ngs1, 
+  lib = sprintf("DAB%s", gsub("^DAB(\\d+)\\.ngsfilter$", "\\1", basename(ngs1))))
+
+dud <- findUnamplifiedSamples(x = xy1, ngs = ngslib1, sex = sprintf("./data/%s", sex.data))
+
+dud.nrow <- sapply(dud, nrow)
+dud.nrow[order(names(dud.nrow))]
+
+dud <- rbindlist(dud)
+dud$length <- -1
+dud$Sequence <- "-1"
+fwrite(dud, file = sprintf("./data/%s", bad.samples), sep = "\t")
+```

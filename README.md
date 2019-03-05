@@ -945,3 +945,5 @@ devtools::install_github("romunov/fishbone") # this requires devtools to be inst
 ```
 
 When you have all this set up, feel free to run the script using `Rscript NGS_pipeline.R`. If everything goes well, you should have a `/data` folder with the final result. If you get any errors, my bet would be on a faulty regular expression.
+
+For the final trick, make a copy of `analysis_of_pipeline_results_template.Rmd` and look at the first non-setup chunk. Enter project/folder name as `proj` and run the script. Some additional files will be produced needed for the wildlife database at UL BF, including diagnostics pdf.
