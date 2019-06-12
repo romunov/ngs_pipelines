@@ -7,11 +7,11 @@ source("custom_functions.R")
 
 #### INPUT ####
 # name project folder name
-proj.name <- "FCC1"
+proj.name <- ""
 # where called sex will be stored
-called.sex <- "fcc1_called_genetic_sex.txt"
+called.sex <- sprintf("%s_called_genetic_sex.txt", proj.name)
 # frequency of sequences by marker
-freq.by.marker <- "frequency_of_sequences_by_marker_fcc1_sex.txt"
+freq.by.marker <- sprintf("frequency_of_sequences_by_marker_%s_sex.txt", proj.name)
 
 # fetch files
 xy.file <- list.files(sprintf("./%s/3_lib_sample_locus", proj.name), pattern = ".*_ZF\\.uniq\\.tab$", full.names = TRUE)

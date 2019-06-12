@@ -4,10 +4,10 @@
 library(parallel)
 library(tidyr)
 library(data.table)
-source("custom_functions.R")
-source("determine_sex_from_ZF.R")  # needed to call sex from samples
 
 # Have these files in the "home" folder of the analysis (ngs_pipelines repo)
+source("custom_functions.R")
+# source("determine_sex_from_ZF.R")  # run this by hand
 source("microsatTabExtract.R")
 locus.motifs <- "locus_motifs.txt"  # motif represented by each locus
 microsattotab.py <- "microsatTabToseries.py"  # a python script which finds "series"
@@ -26,7 +26,7 @@ if (do.chunk2) do.chunk.init <- TRUE
 
 #### USER INPUT ####
 # Specify project name.
-proj.name <- "FCC2"
+proj.name <- ""
 # Specify output file which will be placed inside /data of the project folder.
 raw.rdata <- sprintf("./%s/data/raw_genotypes_%s.RData", proj.name, proj.name)
 raw.cleaned.rdata <- sprintf("./%s/data/genotypes_%s_cleaned.RData", proj.name, proj.name)
@@ -116,6 +116,7 @@ if (do.chunk1) {
       sn[i] <- NULL
     }
   }
+  
   # check that correct ngs filter (sample names) are assigned to correct library data
   message("Do input numbers match library ngsfilter file?")
   print(data.table(ngsfilter = names(sn), input = names(inputfile)))
