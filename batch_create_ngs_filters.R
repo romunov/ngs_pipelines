@@ -8,12 +8,13 @@
 
 library(readxl)
 
-project <- "FCC2"
+project <- "AEN"
 dir.AP <- sprintf("./%s/0_prep_ngsfilters/aliquot_plates", project) # folder where aliquote plates are located
 dir.output <- sprintf("./%s/1_ngsfilters", project) # no trailing slash, where files are to be stored
 
 # This file contains data which maps which aliquot plate comes from which library.
-map.AP <- sprintf("./%s/0_prep_ngsfilters/190118_plate_names.xlsx", project)
+platenames <- "190423_PlateNames_GATC.xlsx"
+map.AP <- sprintf("./%s/0_prep_ngsfilters/%s", project, platenames)
 map.sheet <- "PCR_Plates_4Reps_2Reps"
 
 # Combination of tags to determine sample position/identity.
@@ -44,8 +45,8 @@ if (nrow(PP) == 0) {
 
 # AP will hold links to files to aliquot plates. Data is arranged in columns. Each row holds its own
 # sample (name) which will be used to construct .ngsfilter.
-AP <- data.frame(location = list.files(dir.AP, pattern = "_[AB]\\d+\\.xlsx$", full.names = TRUE))
-AP$name <- gsub("^.*([AB]\\d+)\\.xls[x]$", "\\1", AP$location)
+AP <- data.frame(location = list.files(dir.AP, pattern = "_[AB]\\d+\\.xls$", full.names = TRUE))
+AP$name <- gsub("^.*([AB]\\d+)\\.xls", "\\1", AP$location)
 
 if (nrow(AP) == 0) {
   stop("You have imported primer plates, but filtering failed. Make sure the regex expression in the above lines is correct.")
